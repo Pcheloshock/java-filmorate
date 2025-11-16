@@ -5,6 +5,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.Film;
 import jakarta.validation.Valid;
+
+import java.time.LocalDate;
 import java.util.*;
 
 @RestController
@@ -17,6 +19,11 @@ public class FilmController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Film addFilm(@Valid @RequestBody Film film) {
+        LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
+        if (film.getReleaseDate().isBefore(minReleaseDate)) {
+            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+        }
+
         film.setId(nextId++);
         films.put(film.getId(), film);
         log.info("Добавлен фильм: {}", film);
@@ -29,6 +36,13 @@ public class FilmController {
             log.warn("Попытка обновления несуществующего фильма с ID: {}", film.getId());
             throw new ValidationException("Фильм с указанным ID не существует");
         }
+
+        // Проверка даты релиза должна быть ЗДЕСЬ, а не внутри if-блока с исключением
+        LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
+        if (film.getReleaseDate().isBefore(minReleaseDate)) {
+            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+        }
+
         films.put(film.getId(), film);
         log.info("Обновлен фильм: {}", film);
         return film;
