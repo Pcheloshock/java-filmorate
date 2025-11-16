@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import ru.yandex.practicum.filmorate.exception.ValidationException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,13 +15,6 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-    @ExceptionHandler(ValidationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, String> handleCustomValidationException(ValidationException ex) {
-        log.warn("Ошибка валидации: {}", ex.getMessage());
-        return Map.of("error", ex.getMessage());
-    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -31,6 +25,25 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
+        log.warn("Ошибка валидации: {}", errors);
         return errors;
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleValidationException(ValidationException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        log.warn("Ошибка валидации: {}", ex.getMessage());
+        return error;
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleOtherExceptions(Exception ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Внутренняя ошибка сервера");
+        log.error("Внутренняя ошибка: ", ex);
+        return error;
     }
 }
