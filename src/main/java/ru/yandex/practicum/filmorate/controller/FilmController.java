@@ -77,6 +77,7 @@ public class FilmController {
         }
         return film;
     }
+
     @PostConstruct
     public void init() {
         // Создаем тестовый фильм с ID=1 для тестов
