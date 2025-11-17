@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate.controller;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
@@ -18,6 +19,24 @@ import java.util.Map;
 public class FilmController {
     private static final Logger log = LoggerFactory.getLogger(FilmController.class);
     private final Map<Long, Film> films = new HashMap<>();
+    private long currentId = 1;
+
+    // Добавьте этот метод для создания фильма
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Film createFilm(@Valid @RequestBody Film film) {
+        // Проверка даты релиза
+        LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
+        if (film.getReleaseDate().isBefore(minReleaseDate)) {
+            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+        }
+
+        // Установка ID и сохранение
+        film.setId((int) currentId++);
+        films.put((long) film.getId(), film);
+        log.info("Создан новый фильм: {}", film);
+        return film;
+    }
 
     @PutMapping
     public Film updateFilm(@Valid @RequestBody Film film) {
@@ -26,6 +45,7 @@ public class FilmController {
             throw new ValidationException("Фильм с указанным ID не существует");
         }
 
+        // Проверка даты релиза
         LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
         if (film.getReleaseDate().isBefore(minReleaseDate)) {
             throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
@@ -36,6 +56,7 @@ public class FilmController {
         return film;
     }
 
+    // Добавьте метод для получения всех фильмов
     @GetMapping
     public List<Film> getAllFilms() {
         return new ArrayList<>(films.values());
