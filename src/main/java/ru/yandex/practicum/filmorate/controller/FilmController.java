@@ -27,12 +27,25 @@ public class FilmController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Film createFilm(@Valid @RequestBody Film film) {
-        // Spring автоматически вызовет все валидации включая @ValidReleaseDate
+        // ДЕТАЛЬНАЯ ПРОВЕРКА С ЛОГИРОВАНИЕМ
+        log.info("Получен запрос на создание фильма с датой: {}", film.getReleaseDate());
+
+        LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
+        log.info("Минимальная допустимая дата: {}", minReleaseDate);
+        log.info("Дата из запроса: {}", film.getReleaseDate());
+        log.info("Дата раньше минимальной? {}", film.getReleaseDate().isBefore(minReleaseDate));
+
+        if (film.getReleaseDate().isBefore(minReleaseDate)) {
+            log.warn("ОШИБКА: Дата релиза {} раньше минимальной {}", film.getReleaseDate(), minReleaseDate);
+            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+        }
+        // КОНЕЦ ПРОВЕРКИ
+
         if (film.getId() == 0) {
             film.setId(currentId++);
         }
         films.put(film.getId(), film);
-        log.info("Создан новый фильм: {}", film);
+        log.info("УСПЕХ: Создан новый фильм: {}", film);
         return film;
     }
 

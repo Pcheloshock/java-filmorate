@@ -17,8 +17,9 @@ import java.util.Map;
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    // Обработка ошибок валидации аннотаций (@NotBlank, @Size и т.д.)
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)  // ← ВАЖНО: 400
     public Map<String, String> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(error -> {
@@ -26,30 +27,23 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        log.warn("Ошибка валидации: {}", errors);
+        log.warn("Ошибка валидации аннотаций: {}", errors);
         return errors;
     }
 
+    // Обработка наших кастомных ValidationException
     @ExceptionHandler(ValidationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)  // ← ВАЖНО: 400
     public Map<String, String> handleValidationException(ValidationException ex) {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
-        log.warn("Ошибка валидации: {}", ex.getMessage());
+        log.warn("Ошибка бизнес-валидации: {}", ex.getMessage());
         return error;
     }
 
-    @ExceptionHandler(NotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, String> handleNotFoundException(NotFoundException ex) {
-        Map<String, String> error = new HashMap<>();
-        error.put("error", ex.getMessage());
-        log.warn("Объект не найден: {}", ex.getMessage());
-        return error;
-    }
-
+    // Обработка остальных исключений
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)  // ← 500 для остальных ошибок
     public Map<String, String> handleOtherExceptions(Exception ex) {
         Map<String, String> error = new HashMap<>();
         error.put("error", "Внутренняя ошибка сервера");
