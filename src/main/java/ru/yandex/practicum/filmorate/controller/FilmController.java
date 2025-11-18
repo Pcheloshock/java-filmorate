@@ -99,7 +99,6 @@ public class FilmController {
         return new ArrayList<>(films.values());
     }
 
-
     @PostConstruct
     public void init() {
         // Создаем тестовый фильм с ID=1 для тестов
