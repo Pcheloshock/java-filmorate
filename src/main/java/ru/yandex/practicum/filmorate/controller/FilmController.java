@@ -63,7 +63,7 @@ public class FilmController {
         }
 
         // Обновляем продолжительность, если она не равна 0 (значение по умолчанию для int)
-        if (filmUpdate.getDuration() != 0) {
+        if (filmUpdate.getDuration() <= 0) {
             FilmValidator.validateDuration(filmUpdate.getDuration());
             existingFilm.setDuration(filmUpdate.getDuration());
         }
