@@ -27,25 +27,16 @@ public class FilmController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Film createFilm(@Valid @RequestBody Film film) {
-        // ДЕТАЛЬНАЯ ПРОВЕРКА С ЛОГИРОВАНИЕМ
-        log.info("Получен запрос на создание фильма с датой: {}", film.getReleaseDate());
-
+        // Проверка даты релиза
         LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
-        log.info("Минимальная допустимая дата: {}", minReleaseDate);
-        log.info("Дата из запроса: {}", film.getReleaseDate());
-        log.info("Дата раньше минимальной? {}", film.getReleaseDate().isBefore(minReleaseDate));
-
         if (film.getReleaseDate().isBefore(minReleaseDate)) {
-            log.warn("ОШИБКА: Дата релиза {} раньше минимальной {}", film.getReleaseDate(), minReleaseDate);
             throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
         }
-        // КОНЕЦ ПРОВЕРКИ
 
         if (film.getId() == 0) {
             film.setId(currentId++);
         }
         films.put(film.getId(), film);
-        log.info("УСПЕХ: Создан новый фильм: {}", film);
         return film;
     }
 
@@ -59,7 +50,6 @@ public class FilmController {
             throw new NotFoundException("Фильм с ID " + filmUpdate.getId() + " не найден");
         }
 
-        // Обновляем только non-null поля
         if (filmUpdate.getName() != null) {
             if (filmUpdate.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -74,15 +64,7 @@ public class FilmController {
             existingFilm.setDescription(filmUpdate.getDescription());
         }
 
-        if (filmUpdate.getReleaseDate() != null) {
-            LocalDate minReleaseDate = LocalDate.of(1895, 12, 28);
-            if (filmUpdate.getReleaseDate().isBefore(minReleaseDate)) {
-                throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
-            }
-            existingFilm.setReleaseDate(filmUpdate.getReleaseDate());
-        }
-
-        if (filmUpdate.getDuration() != 0) { // Для примитива int
+        if (filmUpdate.getDuration() <= 0) { // Для примитива int
             if (filmUpdate.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
             }
@@ -97,20 +79,6 @@ public class FilmController {
     @GetMapping
     public List<Film> getAllFilms() {
         return new ArrayList<>(films.values());
-    }
-
-    @PostConstruct
-    public void init() {
-        // Создаем тестовый фильм с ID=1 для тестов
-        Film testFilm = new Film();
-        testFilm.setId(1);
-        testFilm.setName("Initial Film");
-        testFilm.setDescription("Initial Description");
-        testFilm.setReleaseDate(LocalDate.of(2000, 1, 1));
-        testFilm.setDuration(120);
-        films.put(1, testFilm);
-        currentId = 2; // Устанавливаем следующий ID как 2
-        log.info("Инициализирован тестовый фильм с ID=1");
     }
 
     private void validateFilm(Film film) {
