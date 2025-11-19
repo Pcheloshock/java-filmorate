@@ -74,7 +74,7 @@ public class FilmController {
         log.info("Обновлен фильм: {}", existingFilm);
         return existingFilm;
     }
-//тестирование не работает
+
     @GetMapping
     public List<Film> getAllFilms() {
         return new ArrayList<>(films.values());
