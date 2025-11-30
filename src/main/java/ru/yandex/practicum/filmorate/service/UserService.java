@@ -1,26 +1,21 @@
 package ru.yandex.practicum.filmorate.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
     private final UserStorage userStorage;
 
-    @Autowired
-    public UserService(UserStorage userStorage) {
-        this.userStorage = userStorage;
-    }
-
     public User create(User user) {
-        validateUser(user);
+        validateUserForCreate(user);
         if (user.getName() == null || user.getName().isBlank()) {
             user.setName(user.getLogin());
         }
@@ -28,15 +23,40 @@ public class UserService {
     }
 
     public User update(User user) {
-        validateUser(user);
-        if (!userStorage.existsById(user.getId())) {
-            throw new NotFoundException("Пользователь с ID " + user.getId() + " не найден");
+        User existingUser = userStorage.findById(user.getId())
+                .orElseThrow(() -> new NotFoundException("Пользователь с ID " + user.getId() + " не найден"));
+
+        // Частичное обновление
+        if (user.getEmail() != null) {
+            if (user.getEmail().isBlank() || !user.getEmail().contains("@")) {
+                throw new ValidationException("Email не может быть пустым и должен содержать @");
+            }
+            existingUser.setEmail(user.getEmail());
         }
-        User existingUser = userStorage.findById(user.getId()).get();
-        if (user.getName() == null || user.getName().isBlank()) {
-            user.setName(user.getLogin());
+
+        if (user.getLogin() != null) {
+            if (user.getLogin().isBlank() || user.getLogin().contains(" ")) {
+                throw new ValidationException("Логин не может быть пустым и содержать пробелы");
+            }
+            existingUser.setLogin(user.getLogin());
         }
-        return userStorage.update(user);
+
+        if (user.getName() != null) {
+            if (user.getName().isBlank()) {
+                existingUser.setName(user.getLogin());
+            } else {
+                existingUser.setName(user.getName());
+            }
+        }
+
+        if (user.getBirthday() != null) {
+            if (user.getBirthday().isAfter(java.time.LocalDate.now())) {
+                throw new ValidationException("Дата рождения не может быть в будущем");
+            }
+            existingUser.setBirthday(user.getBirthday());
+        }
+
+        return existingUser;
     }
 
     public List<User> findAll() {
@@ -61,9 +81,6 @@ public class UserService {
 
         user.getFriends().add(friendId);
         friend.getFriends().add(userId);
-
-        userStorage.update(user);
-        userStorage.update(friend);
     }
 
     public void removeFriend(int userId, int friendId) {
@@ -76,9 +93,6 @@ public class UserService {
         if (friend.getFriends() != null) {
             friend.getFriends().remove(userId);
         }
-
-        userStorage.update(user);
-        userStorage.update(friend);
     }
 
     public List<User> getFriends(int userId) {
@@ -104,7 +118,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
-    private void validateUser(User user) {
+    private void validateUserForCreate(User user) {
         if (user.getEmail() == null || user.getEmail().isBlank() || !user.getEmail().contains("@")) {
             throw new ValidationException("Email не может быть пустым и должен содержать @");
         }

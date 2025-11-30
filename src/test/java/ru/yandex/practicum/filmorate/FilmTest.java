@@ -73,6 +73,19 @@ class FilmTest {
     }
 
     @Test
+    void shouldFailWhenDurationIsZero() {
+        Film film = new Film();
+        film.setName("Valid Film");
+        film.setDescription("Valid description");
+        film.setReleaseDate(LocalDate.of(2000, 1, 1));
+        film.setDuration(0);
+
+        Set<ConstraintViolation<Film>> violations = validator.validate(film);
+        assertFalse(violations.isEmpty(), "Продолжительность 0 должна вызывать ошибку валидации из-за @Positive");
+        assertTrue(violations.stream().anyMatch(v -> v.getMessage().contains("Продолжительность должна быть положительным числом")));
+    }
+
+    @Test
     void shouldFailWhenDurationIsNegative() {
         Film film = new Film();
         film.setName("Valid Film");
@@ -82,10 +95,11 @@ class FilmTest {
 
         Set<ConstraintViolation<Film>> violations = validator.validate(film);
         assertFalse(violations.isEmpty(), "Отрицательная продолжительность должна вызывать ошибку валидации");
+        assertTrue(violations.stream().anyMatch(v -> v.getMessage().contains("Продолжительность должна быть положительным числом")));
     }
 
     @Test
-    void shouldFailWhenReleaseDateIsNull() {
+    void shouldAcceptNullReleaseDate() {
         Film film = new Film();
         film.setName("Valid Film");
         film.setDescription("Valid description");
@@ -93,7 +107,7 @@ class FilmTest {
         film.setDuration(120);
 
         Set<ConstraintViolation<Film>> violations = validator.validate(film);
-        assertFalse(violations.isEmpty(), "Null дата релиза должна вызывать ошибку валидации");
+        assertTrue(violations.isEmpty(), "Null дата релиза теперь допустима для частичного обновления");
     }
 
     @Test
