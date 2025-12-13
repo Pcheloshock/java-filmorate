@@ -16,11 +16,14 @@ public class Film {
     @Size(max = 200, message = "Максимальная длина описания — 200 символов")
     private String description;
 
-    @NotNull(message = "Дата релиза обязательна")
     private LocalDate releaseDate;
 
     @Positive(message = "Продолжительность должна быть положительным числом")
     private int duration;
 
     private Set<Integer> likes = new HashSet<>();
+
+    // Новые поля согласно заданию
+    private Set<Genre> genres = new HashSet<>();
+    private MpaRating mpa;
 }

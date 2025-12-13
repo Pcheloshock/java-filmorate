@@ -1,9 +1,10 @@
 package ru.yandex.practicum.filmorate.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
+import ru.yandex.practicum.filmorate.model.FriendshipStatus;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
@@ -11,16 +12,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
     private final UserStorage userStorage;
 
-    @Autowired
-    public UserService(UserStorage userStorage) {
-        this.userStorage = userStorage;
-    }
-
     public User create(User user) {
-        validateUser(user);
+        validateUserForCreate(user);
         if (user.getName() == null || user.getName().isBlank()) {
             user.setName(user.getLogin());
         }
@@ -28,15 +25,39 @@ public class UserService {
     }
 
     public User update(User user) {
-        validateUser(user);
-        if (!userStorage.existsById(user.getId())) {
-            throw new NotFoundException("Пользователь с ID " + user.getId() + " не найден");
+        User existingUser = userStorage.findById(user.getId())
+                .orElseThrow(() -> new NotFoundException("Пользователь с ID " + user.getId() + " не найден"));
+
+        if (user.getEmail() != null) {
+            if (user.getEmail().isBlank() || !user.getEmail().contains("@")) {
+                throw new ValidationException("Email не может быть пустым и должен содержать @");
+            }
+            existingUser.setEmail(user.getEmail());
         }
-        User existingUser = userStorage.findById(user.getId()).get();
-        if (user.getName() == null || user.getName().isBlank()) {
-            user.setName(user.getLogin());
+
+        if (user.getLogin() != null) {
+            if (user.getLogin().isBlank() || user.getLogin().contains(" ")) {
+                throw new ValidationException("Логин не может быть пустым и содержать пробелы");
+            }
+            existingUser.setLogin(user.getLogin());
         }
-        return userStorage.update(user);
+
+        if (user.getName() != null) {
+            if (user.getName().isBlank()) {
+                existingUser.setName(user.getLogin());
+            } else {
+                existingUser.setName(user.getName());
+            }
+        }
+
+        if (user.getBirthday() != null) {
+            if (user.getBirthday().isAfter(java.time.LocalDate.now())) {
+                throw new ValidationException("Дата рождения не может быть в будущем");
+            }
+            existingUser.setBirthday(user.getBirthday());
+        }
+
+        return userStorage.update(existingUser);
     }
 
     public List<User> findAll() {
@@ -53,14 +74,21 @@ public class UserService {
         User friend = findById(friendId);
 
         if (user.getFriends() == null) {
-            user.setFriends(new HashSet<>());
+            user.setFriends(new HashMap<>());
         }
         if (friend.getFriends() == null) {
-            friend.setFriends(new HashSet<>());
+            friend.setFriends(new HashMap<>());
         }
 
-        user.getFriends().add(friendId);
-        friend.getFriends().add(userId);
+        // Добавляем дружбу со статусом "неподтвержденная"
+        user.getFriends().put(friendId, FriendshipStatus.UNCONFIRMED);
+
+        // Проверяем, есть ли обратная связь
+        if (friend.getFriends().containsKey(userId)) {
+            // Если есть, то меняем статус на "подтвержденная" у обоих
+            user.getFriends().put(friendId, FriendshipStatus.CONFIRMED);
+            friend.getFriends().put(userId, FriendshipStatus.CONFIRMED);
+        }
 
         userStorage.update(user);
         userStorage.update(friend);
@@ -72,13 +100,14 @@ public class UserService {
 
         if (user.getFriends() != null) {
             user.getFriends().remove(friendId);
-        }
-        if (friend.getFriends() != null) {
-            friend.getFriends().remove(userId);
+            userStorage.update(user);
         }
 
-        userStorage.update(user);
-        userStorage.update(friend);
+        if (friend.getFriends() != null && friend.getFriends().containsKey(userId)) {
+            // Если удаляем подтвержденную дружбу, меняем статус у второго пользователя
+            friend.getFriends().put(userId, FriendshipStatus.UNCONFIRMED);
+            userStorage.update(friend);
+        }
     }
 
     public List<User> getFriends(int userId) {
@@ -86,7 +115,7 @@ public class UserService {
         if (user.getFriends() == null || user.getFriends().isEmpty()) {
             return new ArrayList<>();
         }
-        return user.getFriends().stream()
+        return user.getFriends().keySet().stream()
                 .map(this::findById)
                 .collect(Collectors.toList());
     }
@@ -95,8 +124,8 @@ public class UserService {
         User user = findById(userId);
         User otherUser = findById(otherId);
 
-        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends() : new HashSet<>();
-        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends() : new HashSet<>();
+        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends().keySet() : new HashSet<>();
+        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends().keySet() : new HashSet<>();
 
         return userFriends.stream()
                 .filter(otherFriends::contains)
@@ -104,7 +133,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
-    private void validateUser(User user) {
+    private void validateUserForCreate(User user) {
         if (user.getEmail() == null || user.getEmail().isBlank() || !user.getEmail().contains("@")) {
             throw new ValidationException("Email не может быть пустым и должен содержать @");
         }
