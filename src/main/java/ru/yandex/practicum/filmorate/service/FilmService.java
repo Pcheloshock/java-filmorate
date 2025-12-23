@@ -28,6 +28,10 @@ public class FilmService {
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
         // Частичное обновление - обновляем только те поля, которые пришли и валидны
+        Film existingFilm = filmStorage.findById(film.getId())
+                .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
+
+        // Частичное обновление
         if (film.getName() != null) {
             if (film.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -48,6 +52,7 @@ public class FilmService {
         }
 
         if (film.getDuration() != 0) { // для примитива int 0 может быть значением по умолчанию
+        if (film.getDuration() != 0) {
             if (film.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
             }
@@ -55,6 +60,19 @@ public class FilmService {
         }
 
         return existingFilm; // объект уже обновлен в памяти, не нужно вызывать filmStorage.update
+        }
+
+        // Обновляем новые поля
+        if (film.getGenres() != null) {
+            existingFilm.setGenres(film.getGenres());
+        }
+
+        if (film.getMpa() != null) {
+            existingFilm.setMpa(film.getMpa());
+        }
+
+        // Важно: сохраняем обновленный фильм в хранилище
+        return filmStorage.update(existingFilm);
     }
 
     public List<Film> findAll() {
@@ -68,20 +86,22 @@ public class FilmService {
 
     public void addLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId); // Проверяем существование пользователя
+        userService.findById(userId);
 
         if (film.getLikes() == null) {
             film.setLikes(new HashSet<>());
         }
         film.getLikes().add(userId);
+        filmStorage.update(film); // Сохраняем изменения
     }
 
     public void removeLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId); // Проверяем существование пользователя
+        userService.findById(userId);
 
         if (film.getLikes() != null) {
             film.getLikes().remove(userId);
+            filmStorage.update(film); // Сохраняем изменения
         }
     }
 
