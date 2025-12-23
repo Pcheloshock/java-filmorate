@@ -1,16 +1,23 @@
-name: Post-Merge Actions
-on:
-  pull_request:
-    types: [closed]
+steps:
+  - name: Setup GitHub CLI
+    run: |
+      type -p gh >/dev/null || curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+      type -p gh >/dev/null || echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+      type -p gh >/dev/null || sudo apt update
+      type -p gh >/dev/null || sudo apt install gh -y
 
-jobs:
-  simple-post-merge:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Process after merge
-        run: |
-          echo "PR #${{ github.event.pull_request.number }} was merged"
-          echo "From: ${{ github.event.pull_request.head.ref }}"
-          echo "To: ${{ github.event.pull_request.base.ref }}"
-          # Ваши команды здесь
+  - name: Authenticate with GitHub CLI
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    run: |
+      gh auth setup-git
+      gh auth status
+
+  - name: Merge specific PR
+    if: github.event.pull_request.head.ref == 'add-friends-likes'
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    run: |
+      echo "🔄 Мержу PR #2 (ветка add-friends-likes)..."
+      gh pr merge https://github.com/Pcheloshock/java-filmorate/pull/2 --merge --delete-branch
+      echo "✅ PR успешно смержен!"
