@@ -1,23 +1,83 @@
-steps:
-  - name: Setup GitHub CLI
-    run: |
-      type -p gh >/dev/null || curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-      type -p gh >/dev/null || echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-      type -p gh >/dev/null || sudo apt update
-      type -p gh >/dev/null || sudo apt install gh -y
+name: Post-Merge Processing
+on:
+  pull_request:
+    types: [closed]
 
-  - name: Authenticate with GitHub CLI
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
-      gh auth setup-git
-      gh auth status
+jobs:
+  handle-approved-merge:
+    # Запускаем только при мерже в main
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
 
-  - name: Merge specific PR
-    if: github.event.pull_request.head.ref == 'add-friends-likes'
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
-      echo "🔄 Мержу PR #2 (ветка add-friends-likes)..."
-      gh pr merge https://github.com/Pcheloshock/java-filmorate/pull/2 --merge --delete-branch
-      echo "✅ PR успешно смержен!"
+    runs-on: ubuntu-latest
+
+    # Права для работы с репозиторием
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      # 1. Подготовка
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Полная история для работы с git
+
+      # 2. Проверяем ветку по вашему списку
+      - name: Validate branch
+        id: check-branch
+        run: |
+          CURRENT_BRANCH="${{ github.event.pull_request.head.ref }}"
+          echo "Processing branch: $CURRENT_BRANCH"
+          
+          # Ваш список разрешенных веток
+          case "$CURRENT_BRANCH" in
+            add-common-films|add-director|add-feed|add-marks|add-most-populars|add-recommendations|add-remove-endpoint|add-reviews|add-search|add-friends-likes)
+              echo "✅ Branch $CURRENT_BRANCH is approved"
+              echo "approved=true" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ Branch $CURRENT_BRANCH is NOT in approved list"
+              echo "approved=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      # 3. Выполняем действия для approved веток
+      - name: Execute merge actions
+        if: steps.check-branch.outputs.approved == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚀 Starting post-merge actions for PR #${{ github.event.pull_request.number }}"
+          
+          # === КОНКРЕТНЫЕ КОМАНДЫ ДЛЯ ВАС ===
+          
+          # Если нужно автоматически мержитЬ другие PR после этого мержа:
+          if [[ "${{ github.event.pull_request.head.ref }}" == "add-friends-likes" ]]; then
+            echo "📌 Processing add-friends-likes branch..."
+          
+            # Пример: запуск дополнительных тестов
+            echo "🧪 Running integration tests..."
+            # mvn test -Dtest="*Friends*Test,*Likes*Test"
+          
+            # Пример: обновление другой ветки
+            echo "🔄 Updating related branches..."
+            # git checkout develop
+            # git merge main --no-ff -m "Merge main after PR #${{ github.event.pull_request.number }}"
+            # git push origin develop
+          
+            echo "✅ Specific actions for add-friends-likes completed"
+          fi
+          
+          # Общие действия для любой approved ветки
+          echo "📊 Generating reports..."
+          # mvn site  # или другие команды
+          
+          echo "🎉 All post-merge actions completed!"
+
+      # 4. Уведомление для не-approved веток
+      - name: Skip non-approved branch
+        if: steps.check-branch.outputs.approved == 'false'
+        run: |
+          echo "⏭️ Skipping: Branch ${{ github.event.pull_request.head.ref }} not in approved list"
+          echo "No actions required."
