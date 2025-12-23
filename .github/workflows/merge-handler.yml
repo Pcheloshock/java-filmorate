@@ -1,0 +1,16 @@
+name: Post-Merge Actions
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  simple-post-merge:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process after merge
+        run: |
+          echo "PR #${{ github.event.pull_request.number }} was merged"
+          echo "From: ${{ github.event.pull_request.head.ref }}"
+          echo "To: ${{ github.event.pull_request.base.ref }}"
+          # Ваши команды здесь
