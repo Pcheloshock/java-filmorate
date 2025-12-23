@@ -4,7 +4,6 @@ import ru.yandex.practicum.filmorate.exception.ValidationException;
 import java.time.LocalDate;
 
 public class FilmValidator {
-
     public static final LocalDate MIN_RELEASE_DATE = LocalDate.of(1895, 12, 28);
 
     public static void validateReleaseDate(LocalDate releaseDate) {
@@ -14,7 +13,7 @@ public class FilmValidator {
     }
 
     public static void validateName(String name) {
-        if (name != null && name.isBlank()) {
+        if (name == null || name.isBlank()) {
             throw new ValidationException("Название не может быть пустым");
         }
     }
