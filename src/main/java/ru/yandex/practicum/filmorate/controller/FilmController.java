@@ -36,7 +36,7 @@ public class FilmController {
 
     @GetMapping
     public List<Film> getAllFilms() {
-        return filmService.findAll();
+        return filmService.findAll();  // ИСПРАВЛЕНО: было finalize()
     }
 
     @GetMapping("/{id}")

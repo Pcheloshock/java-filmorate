@@ -77,7 +77,7 @@ public class FilmService {
 
     public void addLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId);
+        userService.findById(userId); // Проверяем существование пользователя
 
         if (film.getLikes() == null) {
             film.setLikes(new HashSet<>());
@@ -88,7 +88,7 @@ public class FilmService {
 
     public void removeLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId);
+        userService.findById(userId); // Проверяем существование пользователя
 
         if (film.getLikes() != null) {
             film.getLikes().remove(userId);

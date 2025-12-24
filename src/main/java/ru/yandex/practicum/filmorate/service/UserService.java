@@ -74,24 +74,13 @@ public class UserService {
         User friend = findById(friendId);
 
         if (user.getFriends() == null) {
-            user.setFriends(new HashMap<>());
-        }
-        if (friend.getFriends() == null) {
-            friend.setFriends(new HashMap<>());
+            user.setFriends(new HashSet<>());
         }
 
-        // Добавляем дружбу со статусом "неподтвержденная"
-        user.getFriends().put(friendId, FriendshipStatus.UNCONFIRMED);
-
-        // Проверяем, есть ли обратная связь
-        if (friend.getFriends().containsKey(userId)) {
-            // Если есть, то меняем статус на "подтвержденная" у обоих
-            user.getFriends().put(friendId, FriendshipStatus.CONFIRMED);
-            friend.getFriends().put(userId, FriendshipStatus.CONFIRMED);
-        }
+        // Добавляем друга
+        user.getFriends().add(friendId);
 
         userStorage.update(user);
-        userStorage.update(friend);
     }
 
     public void removeFriend(int userId, int friendId) {
@@ -102,12 +91,6 @@ public class UserService {
             user.getFriends().remove(friendId);
             userStorage.update(user);
         }
-
-        if (friend.getFriends() != null && friend.getFriends().containsKey(userId)) {
-            // Если удаляем подтвержденную дружбу, меняем статус у второго пользователя
-            friend.getFriends().put(userId, FriendshipStatus.UNCONFIRMED);
-            userStorage.update(friend);
-        }
     }
 
     public List<User> getFriends(int userId) {
@@ -115,7 +98,7 @@ public class UserService {
         if (user.getFriends() == null || user.getFriends().isEmpty()) {
             return new ArrayList<>();
         }
-        return user.getFriends().keySet().stream()
+        return user.getFriends().stream()
                 .map(this::findById)
                 .collect(Collectors.toList());
     }
@@ -124,8 +107,8 @@ public class UserService {
         User user = findById(userId);
         User otherUser = findById(otherId);
 
-        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends().keySet() : new HashSet<>();
-        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends().keySet() : new HashSet<>();
+        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends() : new HashSet<>();
+        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends() : new HashSet<>();
 
         return userFriends.stream()
                 .filter(otherFriends::contains)

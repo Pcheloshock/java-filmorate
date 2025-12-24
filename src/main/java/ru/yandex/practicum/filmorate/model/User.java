@@ -1,15 +1,20 @@
 package ru.yandex.practicum.filmorate.model;
 
+import lombok.Builder;
 import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class User {
-    private int id;
+    private Integer id;
 
     @NotBlank(message = "Email не может быть пустым")
     @Email(message = "Email должен содержать символ @")
@@ -24,6 +29,6 @@ public class User {
     @PastOrPresent(message = "Дата рождения не может быть в будущем")
     private LocalDate birthday;
 
-    // Заменяем Set<Integer> на Map<Integer, FriendshipStatus> для хранения статуса дружбы
-    private Map<Integer, FriendshipStatus> friends;
+    @Builder.Default
+    private Set<Integer> friends = new HashSet<>();
 }
