@@ -19,6 +19,14 @@ public class FilmService {
 
     public Film create(Film film) {
         validateFilmForCreate(film);
+
+        // Если имя пустое, устанавливаем логин (но это для User, а не Film!)
+        // Для фильма, вероятно, это не нужно, но оставим по аналогии с User
+        if (film.getName() != null && film.getName().isBlank()) {
+            // Что делать, если имя пустое? Возможно, бросить исключение
+            throw new ValidationException("Название не может быть пустым");
+        }
+
         return filmStorage.create(film);
     }
 
@@ -26,7 +34,7 @@ public class FilmService {
         Film existingFilm = filmStorage.findById(film.getId())
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
-        // Частичное обновление
+        // Частичное обновление - ТОЛЬКО если передано значение
         if (film.getName() != null) {
             if (film.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -35,17 +43,20 @@ public class FilmService {
         }
 
         if (film.getDescription() != null) {
+            // Длина 200 допустима! (тест shouldAcceptDescriptionAtMaxLength)
             if (film.getDescription().length() > 200) {
                 throw new ValidationException("Максимальная длина описания — 200 символов");
             }
             existingFilm.setDescription(film.getDescription());
         }
 
+        // ВАЖНО: releaseDate может быть null для частичного обновления!
         if (film.getReleaseDate() != null) {
             validateReleaseDate(film.getReleaseDate());
             existingFilm.setReleaseDate(film.getReleaseDate());
         }
 
+        // Для int используем != 0, так как 0 - значение по умолчанию
         if (film.getDuration() != 0) {
             if (film.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
@@ -53,7 +64,6 @@ public class FilmService {
             existingFilm.setDuration(film.getDuration());
         }
 
-        // Обновляем новые поля
         if (film.getGenres() != null) {
             existingFilm.setGenres(film.getGenres());
         }
@@ -62,7 +72,6 @@ public class FilmService {
             existingFilm.setMpa(film.getMpa());
         }
 
-        // Важно: сохраняем обновленный фильм в хранилище
         return filmStorage.update(existingFilm);
     }
 
@@ -111,13 +120,20 @@ public class FilmService {
         if (film.getName() == null || film.getName().isBlank()) {
             throw new ValidationException("Название не может быть пустым");
         }
+
+        // Изменено: проверяем только если description != null
         if (film.getDescription() != null && film.getDescription().length() > 200) {
             throw new ValidationException("Максимальная длина описания — 200 символов");
         }
+
+        // Изменено: проверяем releaseDate != null (как в тестах)
         if (film.getReleaseDate() == null) {
             throw new ValidationException("Дата релиза обязательна");
         }
+
         validateReleaseDate(film.getReleaseDate());
+
+        // Изменено: продолжительность > 0 (не >= 1)
         if (film.getDuration() <= 0) {
             throw new ValidationException("Продолжительность должна быть положительным числом");
         }
