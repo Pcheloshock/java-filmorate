@@ -55,6 +55,7 @@ public class UserService {
             }
             existingUser.setBirthday(user.getBirthday());
         }
+
         return userStorage.update(existingUser);
     }
 
@@ -74,16 +75,12 @@ public class UserService {
         if (user.getFriends() == null) {
             user.setFriends(new HashSet<>());
         }
-
         user.getFriends().add(friendId);
-
         userStorage.update(user);
     }
 
     public void removeFriend(int userId, int friendId) {
         User user = findById(userId);
-        User friend = findById(friendId);
-
         if (user.getFriends() != null) {
             user.getFriends().remove(friendId);
             userStorage.update(user);
