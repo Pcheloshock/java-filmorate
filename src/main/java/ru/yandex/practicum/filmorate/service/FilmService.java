@@ -23,6 +23,11 @@ public class FilmService {
     }
 
     public Film update(Film film) {
+        // Проверяем существование фильма
+        Film existingFilm = filmStorage.findById(film.getId())
+                .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
+
+        // Частичное обновление - обновляем только те поля, которые пришли и валидны
         Film existingFilm = filmStorage.findById(film.getId())
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
@@ -46,11 +51,15 @@ public class FilmService {
             existingFilm.setReleaseDate(film.getReleaseDate());
         }
 
+        if (film.getDuration() != 0) { // для примитива int 0 может быть значением по умолчанию
         if (film.getDuration() != 0) {
             if (film.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
             }
             existingFilm.setDuration(film.getDuration());
+        }
+
+        return existingFilm; // объект уже обновлен в памяти, не нужно вызывать filmStorage.update
         }
 
         // Обновляем новые поля

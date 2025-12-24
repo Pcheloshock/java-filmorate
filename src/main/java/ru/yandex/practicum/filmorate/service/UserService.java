@@ -7,7 +7,6 @@ import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.FriendshipStatus;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,6 +27,7 @@ public class UserService {
         User existingUser = userStorage.findById(user.getId())
                 .orElseThrow(() -> new NotFoundException("Пользователь с ID " + user.getId() + " не найден"));
 
+        // Частичное обновление
         if (user.getEmail() != null) {
             if (user.getEmail().isBlank() || !user.getEmail().contains("@")) {
                 throw new ValidationException("Email не может быть пустым и должен содержать @");
@@ -40,6 +40,24 @@ public class UserService {
                 throw new ValidationException("Логин не может быть пустым и содержать пробелы");
             }
             existingUser.setLogin(user.getLogin());
+        }
+
+        if (user.getName() != null) {
+            if (user.getName().isBlank()) {
+                existingUser.setName(user.getLogin());
+            } else {
+                existingUser.setName(user.getName());
+            }
+        }
+
+        if (user.getBirthday() != null) {
+            if (user.getBirthday().isAfter(java.time.LocalDate.now())) {
+                throw new ValidationException("Дата рождения не может быть в будущем");
+            }
+            existingUser.setBirthday(user.getBirthday());
+        }
+
+        return existingUser;
         }
 
         if (user.getName() != null) {
@@ -76,6 +94,14 @@ public class UserService {
         if (user.getFriends() == null) {
             user.setFriends(new HashSet<>());
         }
+        if (friend.getFriends() == null) {
+            friend.setFriends(new HashMap<>());
+        }
+
+        user.getFriends().add(friendId);
+        friend.getFriends().add(userId);
+        // Добавляем дружбу со статусом "неподтвержденная"
+        user.getFriends().put(friendId, FriendshipStatus.UNCONFIRMED);
 
         // Добавляем друга
         user.getFriends().add(friendId);
