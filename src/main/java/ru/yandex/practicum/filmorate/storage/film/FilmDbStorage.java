@@ -13,6 +13,7 @@ import ru.yandex.practicum.filmorate.model.MpaRating;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
@@ -126,22 +127,19 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> getPopularFilms(int count) {
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "COUNT(fl.user_id) as likes_count " +
+        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f " +
                 "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
                 "LEFT JOIN film_likes fl ON f.id = fl.film_id " +
                 "GROUP BY f.id, m.id, m.name, m.description " +
-                "ORDER BY likes_count DESC " +
+                "ORDER BY COUNT(fl.user_id) DESC " +
                 "LIMIT ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
-
         films.forEach(film -> {
             loadGenres(film);
             loadLikes(film);
         });
-
         return films;
     }
 
@@ -154,8 +152,12 @@ public class FilmDbStorage implements FilmStorage {
 
     private void saveGenres(Film film) {
         if (film.getGenres() != null && !film.getGenres().isEmpty()) {
-            // Удаляем дубликаты жанров (используем Set для уникальности)
-            Set<Genre> uniqueGenres = new HashSet<>(film.getGenres());
+            // Удаляем дубликаты и сохраняем порядок по id
+            Set<Genre> uniqueGenres = film.getGenres().stream()
+                    .collect(Collectors.toCollection(
+                            () -> new TreeSet<>(Comparator.comparingInt(Genre::getId))
+                    ));
+
             String sql = "INSERT INTO film_genres (film_id, genre_id) VALUES (?, ?)";
             uniqueGenres.forEach(genre -> {
                 jdbcTemplate.update(sql, film.getId(), genre.getId());
@@ -176,7 +178,7 @@ public class FilmDbStorage implements FilmStorage {
         List<Genre> genres = jdbcTemplate.query(sql,
                 (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
                 film.getId());
-        film.setGenres(new HashSet<>(genres));
+        film.setGenres(new LinkedHashSet<>(genres)); // Используем LinkedHashSet для сохранения порядка
     }
 
     private void loadLikes(Film film) {
@@ -198,10 +200,11 @@ public class FilmDbStorage implements FilmStorage {
             film.setReleaseDate(rs.getDate("release_date").toLocalDate());
             film.setDuration(rs.getInt("duration"));
 
-            // Устанавливаем MPA рейтинг
-            if (rs.getInt("mpa_id") != 0) {
+            // Устанавливаем MPA рейтинг с названием и описанием
+            int mpaId = rs.getInt("mpa_id");
+            if (mpaId != 0) {
                 MpaRating mpa = new MpaRating();
-                mpa.setId(rs.getInt("mpa_id"));
+                mpa.setId(mpaId);
                 mpa.setName(rs.getString("mpa_name"));
                 mpa.setDescription(rs.getString("mpa_description"));
                 film.setMpa(mpa);

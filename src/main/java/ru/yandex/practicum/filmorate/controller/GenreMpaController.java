@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.model.MpaRating;
 import ru.yandex.practicum.filmorate.storage.film.GenreMpaStorage;
@@ -11,7 +12,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class GenreMpaController {
-    private final GenreMpaStorage genreMpaStorage;  // Используем интерфейс, а не конкретную реализацию
+    private final GenreMpaStorage genreMpaStorage;
 
     @GetMapping("/genres")
     public List<Genre> getAllGenres() {
@@ -20,7 +21,11 @@ public class GenreMpaController {
 
     @GetMapping("/genres/{id}")
     public Genre getGenreById(@PathVariable int id) {
-        return genreMpaStorage.getGenreById(id);
+        try {
+            return genreMpaStorage.getGenreById(id);
+        } catch (Exception e) {
+            throw new NotFoundException("Жанр с ID " + id + " не найден");
+        }
     }
 
     @GetMapping("/mpa")
@@ -30,6 +35,10 @@ public class GenreMpaController {
 
     @GetMapping("/mpa/{id}")
     public MpaRating getMpaRatingById(@PathVariable int id) {
-        return genreMpaStorage.getMpaRatingById(id);
+        try {
+            return genreMpaStorage.getMpaRatingById(id);
+        } catch (Exception e) {
+            throw new NotFoundException("MPA с ID " + id + " не найден");
+        }
     }
 }

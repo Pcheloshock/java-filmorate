@@ -81,9 +81,15 @@ public class UserService {
 
     public void removeFriend(int userId, int friendId) {
         User user = findById(userId);
+        User friend = findById(friendId); // Проверяем существование друга
+
         if (user.getFriends() != null) {
-            user.getFriends().remove(friendId);
-            userStorage.update(user);
+            // Если друг есть в списке - удаляем
+            if (user.getFriends().contains(friendId)) {
+                user.getFriends().remove(friendId);
+                userStorage.update(user);
+            }
+            // Если друга нет в списке - тоже OK (идемпотентность)
         }
     }
 

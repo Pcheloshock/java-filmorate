@@ -1,10 +1,13 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.model.MpaRating;
+
 import java.util.List;
 
 @Repository
@@ -23,10 +26,14 @@ public class GenreMpaDbStorage implements GenreMpaStorage {
     @Override
     public Genre getGenreById(int id) {
         String sql = "SELECT * FROM genres WHERE id = ?";
-        return jdbcTemplate.queryForObject(sql,
-                (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
-                id
-        );
+        try {
+            return jdbcTemplate.queryForObject(sql,
+                    (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
+                    id
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new NotFoundException("Жанр с ID " + id + " не найден");
+        }
     }
 
     @Override
@@ -40,9 +47,13 @@ public class GenreMpaDbStorage implements GenreMpaStorage {
     @Override
     public MpaRating getMpaRatingById(int id) {
         String sql = "SELECT * FROM mpa_ratings WHERE id = ?";
-        return jdbcTemplate.queryForObject(sql,
-                (rs, rowNum) -> new MpaRating(rs.getInt("id"), rs.getString("name"), rs.getString("description")),
-                id
-        );
+        try {
+            return jdbcTemplate.queryForObject(sql,
+                    (rs, rowNum) -> new MpaRating(rs.getInt("id"), rs.getString("name"), rs.getString("description")),
+                    id
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new NotFoundException("MPA с ID " + id + " не найден");
+        }
     }
 }
