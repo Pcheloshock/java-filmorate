@@ -15,7 +15,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Film {
-    @NotNull(message = "Release date cannot be null")
+    // При создании фильма id всегда null, пока БД не присвоит значение
     private Integer id;
 
     @NotBlank(message = "Название не может быть пустым")
@@ -38,4 +38,29 @@ public class Film {
     private MpaRating mpa;
     private Integer rate;
 
+    public boolean isValid() {
+        // 1. Название обязательно
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+
+        // 2. Описание: если есть, то не длиннее 200 символов
+        if (description != null && description.length() > 200) {
+            return false;
+        }
+
+        // 3. Дата релиза: может быть null (для частичных обновлений)
+        // Если указана, должна быть не раньше 28.12.1895
+        if (releaseDate != null && releaseDate.isBefore(LocalDate.of(1895, 12, 28))) {
+            return false;
+        }
+
+        // 4. Продолжительность: > 0 (аннотация @Positive уже проверяет)
+        // duration может быть null, это допустимо для частичных обновлений
+        if (duration != null && duration <= 0) {
+            return false;
+        }
+
+        return true;
+    }
 }

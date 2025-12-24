@@ -19,7 +19,7 @@ public class FilmController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Film createFilm(@Valid @RequestBody Film film) {
+    public Film createFilm(@RequestBody Film film) {
         log.info("Создание фильма: {}", film);
         return filmService.create(film);
     }
