@@ -170,15 +170,15 @@ public class FilmDbStorage implements FilmStorage {
     private void loadGenres(Film film) {
         String sql = "SELECT g.id, g.name FROM genres g " +
                 "JOIN film_genres fg ON g.id = fg.genre_id " +
-                "WHERE fg.film_id = ? " +
-                "ORDER BY g.id";
+                "WHERE fg.film_id = ?";
         List<Genre> genres = jdbcTemplate.query(sql,
                 (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
                 film.getId());
 
-        // Сортируем по id
-        genres.sort(Comparator.comparingInt(Genre::getId));
-        film.setGenres(new LinkedHashSet<>(genres));
+        // Используем TreeSet для автоматической сортировки по id
+        Set<Genre> sortedGenres = new TreeSet<>(Comparator.comparingInt(Genre::getId));
+        sortedGenres.addAll(genres);
+        film.setGenres(sortedGenres);
     }
 
     private void loadLikes(Film film) {
@@ -203,14 +203,45 @@ public class FilmDbStorage implements FilmStorage {
             // Устанавливаем MPA рейтинг с названием и описанием
             int mpaId = rs.getInt("mpa_id");
             if (mpaId != 0) {
+                String mpaName = rs.getString("mpa_name");
+                String mpaDescription = rs.getString("mpa_description");
+
+                // Если поля NULL (в случае LEFT JOIN без совпадения), устанавливаем значения из кэша
+                if (mpaName == null || mpaDescription == null) {
+                    mpaName = getDefaultMpaName(mpaId);
+                    mpaDescription = getDefaultMpaDescription(mpaId);
+                }
+
                 MpaRating mpa = new MpaRating();
                 mpa.setId(mpaId);
-                mpa.setName(rs.getString("mpa_name"));
-                mpa.setDescription(rs.getString("mpa_description"));
+                mpa.setName(mpaName);
+                mpa.setDescription(mpaDescription);
                 film.setMpa(mpa);
             }
 
             return film;
+        }
+
+        private String getDefaultMpaName(int id) {
+            return switch (id) {
+                case 1 -> "G";
+                case 2 -> "PG";
+                case 3 -> "PG-13";
+                case 4 -> "R";
+                case 5 -> "NC-17";
+                default -> "";
+            };
+        }
+
+        private String getDefaultMpaDescription(int id) {
+            return switch (id) {
+                case 1 -> "Нет возрастных ограничений";
+                case 2 -> "Рекомендуется присутствие родителей";
+                case 3 -> "Детям до 13 лет просмотр не желателен";
+                case 4 -> "Лицам до 17 лет обязательно присутствие взрослого";
+                case 5 -> "Лицам до 18 лет просмотр запрещен";
+                default -> "";
+            };
         }
     }
 }

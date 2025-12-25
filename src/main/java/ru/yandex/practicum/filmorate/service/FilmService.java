@@ -23,21 +23,21 @@ public class FilmService {
     public Film create(Film film) {
         validateFilmForCreate(film);
 
-        // Проверяем существование MPA
+        // Проверяем существование MPA - ДО сохранения фильма
         if (film.getMpa() != null) {
             try {
                 genreMpaStorage.getMpaRatingById(film.getMpa().getId());
-            } catch (Exception e) {
+            } catch (NotFoundException e) {
                 throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
             }
         }
 
-        // Проверяем существование жанров
+        // Проверяем существование жанров - ДО сохранения фильма
         if (film.getGenres() != null && !film.getGenres().isEmpty()) {
             for (Genre genre : film.getGenres()) {
                 try {
                     genreMpaStorage.getGenreById(genre.getId());
-                } catch (Exception e) {
+                } catch (NotFoundException e) {
                     throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
                 }
             }

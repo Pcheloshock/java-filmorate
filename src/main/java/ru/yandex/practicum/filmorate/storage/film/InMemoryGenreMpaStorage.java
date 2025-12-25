@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
 import org.springframework.stereotype.Component;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.model.MpaRating;
 
@@ -32,22 +33,30 @@ public class InMemoryGenreMpaStorage implements GenreMpaStorage {
     }
 
     @Override
+    public Genre getGenreById(int id) {
+        Genre genre = genres.get(id);
+        if (genre == null) {
+            throw new NotFoundException("Жанр с ID " + id + " не найден");
+        }
+        return genre;
+    }
+
+    @Override
+    public MpaRating getMpaRatingById(int id) {
+        MpaRating mpa = mpaRatings.get(id);
+        if (mpa == null) {
+            throw new NotFoundException("MPA с ID " + id + " не найден");
+        }
+        return mpa;
+    }
+
+    @Override
     public List<Genre> getAllGenres() {
         return new ArrayList<>(genres.values());
     }
 
     @Override
-    public Genre getGenreById(int id) {
-        return genres.get(id);
-    }
-
-    @Override
     public List<MpaRating> getAllMpaRatings() {
         return new ArrayList<>(mpaRatings.values());
-    }
-
-    @Override
-    public MpaRating getMpaRatingById(int id) {
-        return mpaRatings.get(id);
     }
 }

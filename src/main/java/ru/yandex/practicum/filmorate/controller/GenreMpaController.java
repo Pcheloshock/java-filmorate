@@ -21,11 +21,7 @@ public class GenreMpaController {
 
     @GetMapping("/genres/{id}")
     public Genre getGenreById(@PathVariable int id) {
-        try {
-            return genreMpaStorage.getGenreById(id);
-        } catch (Exception e) {
-            throw new NotFoundException("Жанр с ID " + id + " не найден");
-        }
+        return genreMpaStorage.getGenreById(id);
     }
 
     @GetMapping("/mpa")
@@ -35,10 +31,6 @@ public class GenreMpaController {
 
     @GetMapping("/mpa/{id}")
     public MpaRating getMpaRatingById(@PathVariable int id) {
-        try {
-            return genreMpaStorage.getMpaRatingById(id);
-        } catch (Exception e) {
-            throw new NotFoundException("MPA с ID " + id + " не найден");
-        }
+        return genreMpaStorage.getMpaRatingById(id);
     }
 }
