@@ -37,7 +37,9 @@ public class FilmDbStorage implements FilmStorage {
         film.setId(id.intValue());
 
         saveGenres(film);
-        return film;
+
+        // Загружаем полную информацию о фильме с MPA и жанрами
+        return findById(film.getId()).orElse(film);
     }
 
     @Override
@@ -60,7 +62,8 @@ public class FilmDbStorage implements FilmStorage {
         deleteGenres(film.getId());
         saveGenres(film);
 
-        return film;
+        // Загружаем обновленный фильм с полной информацией
+        return findById(film.getId()).orElse(film);
     }
 
     @Override
@@ -143,13 +146,7 @@ public class FilmDbStorage implements FilmStorage {
         return films;
     }
 
-    private void saveMpaRating(Film film) {
-        if (film.getMpa() != null) {
-            String sql = "UPDATE films SET mpa_rating_id = ? WHERE id = ?";
-            jdbcTemplate.update(sql, film.getMpa().getId(), film.getId());
-        }
-    }
-
+    // Вспомогательные методы
     private void saveGenres(Film film) {
         if (film.getGenres() != null && !film.getGenres().isEmpty()) {
             // Удаляем дубликаты и сохраняем порядок по id
@@ -178,7 +175,10 @@ public class FilmDbStorage implements FilmStorage {
         List<Genre> genres = jdbcTemplate.query(sql,
                 (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
                 film.getId());
-        film.setGenres(new LinkedHashSet<>(genres)); // Используем LinkedHashSet для сохранения порядка
+
+        // Сортируем по id
+        genres.sort(Comparator.comparingInt(Genre::getId));
+        film.setGenres(new LinkedHashSet<>(genres));
     }
 
     private void loadLikes(Film film) {
