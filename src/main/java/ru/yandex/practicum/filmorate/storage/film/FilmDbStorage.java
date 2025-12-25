@@ -13,7 +13,6 @@ import ru.yandex.practicum.filmorate.model.MpaRating;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
@@ -68,7 +67,7 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> findAll() {
-        String sql = "SELECT f.*, m.name as mpa_name, m.description as mpa_description " +
+        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id";
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper());
 
@@ -76,10 +75,6 @@ public class FilmDbStorage implements FilmStorage {
         films.forEach(film -> {
             loadGenres(film);
             loadLikes(film);
-            // Если MPA не загрузилось через JOIN, загрузим отдельно
-            if (film.getMpa() != null && film.getMpa().getName() == null) {
-                loadMpa(film);
-            }
         });
 
         return films;
@@ -174,41 +169,19 @@ public class FilmDbStorage implements FilmStorage {
     private void loadGenres(Film film) {
         String sql = "SELECT g.id, g.name FROM genres g " +
                 "JOIN film_genres fg ON g.id = fg.genre_id " +
-                "WHERE fg.film_id = ? " +
-                "ORDER BY g.id"; // Добавьте сортировку по ID
-
+                "WHERE fg.film_id = ? ORDER BY g.id";
         List<Genre> genres = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     Genre genre = new Genre();
                     genre.setId(rs.getInt("id"));
-                    genre.setName(rs.getString("name")); // Убедитесь, что имя берется из результата
+                    genre.setName(rs.getString("name"));
                     return genre;
                 },
                 film.getId());
 
-        // Используем LinkedHashSet для сохранения порядка сортировки
+        // Используем LinkedHashSet для сохранения порядка
         Set<Genre> sortedGenres = new LinkedHashSet<>(genres);
         film.setGenres(sortedGenres);
-    }
-
-    private void loadMpa(Film film) {
-        String sql = "SELECT m.id, m.name, m.description FROM mpa_ratings m " +
-                "JOIN films f ON f.mpa_rating_id = m.id " +
-                "WHERE f.id = ?";
-
-        List<MpaRating> mpaList = jdbcTemplate.query(sql,
-                (rs, rowNum) -> {
-                    MpaRating mpa = new MpaRating();
-                    mpa.setId(rs.getInt("id"));
-                    mpa.setName(rs.getString("name"));
-                    mpa.setDescription(rs.getString("description"));
-                    return mpa;
-                },
-                film.getId());
-
-        if (!mpaList.isEmpty()) {
-            film.setMpa(mpaList.get(0));
-        }
     }
 
     private void loadLikes(Film film) {
@@ -230,28 +203,51 @@ public class FilmDbStorage implements FilmStorage {
             film.setReleaseDate(rs.getDate("release_date").toLocalDate());
             film.setDuration(rs.getInt("duration"));
 
-            // Устанавливаем MPA рейтинг
+            // Устанавливаем MPA рейтинг с названием и описанием
             int mpaId = rs.getInt("mpa_rating_id");
             if (mpaId != 0) {
                 MpaRating mpa = new MpaRating();
                 mpa.setId(mpaId);
 
-                // Получаем имя из результата запроса или используем дефолтное
                 String mpaName = rs.getString("mpa_name");
                 if (mpaName == null) {
-                    // Если не нашли в JOIN, используем дефолтные значения
-                    mpaName = getDefaultMpaName(mpaId);
+                    // Если имя не получено из JOIN, используем дефолтное значение
+                    mpaName = getMpaNameById(mpaId);
                 }
                 mpa.setName(mpaName);
 
                 String mpaDescription = rs.getString("mpa_description");
                 if (mpaDescription == null) {
-                    mpaDescription = getDefaultMpaDescription(mpaId);
+                    mpaDescription = getMpaDescriptionById(mpaId);
                 }
                 mpa.setDescription(mpaDescription);
+
                 film.setMpa(mpa);
             }
+
             return film;
+        }
+
+        private String getMpaNameById(int id) {
+            return switch (id) {
+                case 1 -> "G";
+                case 2 -> "PG";
+                case 3 -> "PG-13";
+                case 4 -> "R";
+                case 5 -> "NC-17";
+                default -> "";
+            };
+        }
+
+        private String getMpaDescriptionById(int id) {
+            return switch (id) {
+                case 1 -> "Нет возрастных ограничений";
+                case 2 -> "Рекомендуется присутствие родителей";
+                case 3 -> "Детям до 13 лет просмотр не желателен";
+                case 4 -> "Лицам до 17 лет обязательно присутствие взрослого";
+                case 5 -> "Лицам до 18 лет просмотр запрещен";
+                default -> "";
+            };
         }
     }
 }
