@@ -16,7 +16,7 @@ public class InMemoryGenreMpaStorage implements GenreMpaStorage {
     private final Map<Integer, MpaRating> mpaRatings = new HashMap<>();
 
     public InMemoryGenreMpaStorage() {
-        // Инициализируем жанры
+        // Инициализируем жанры с корректными названиями
         genres.put(1, new Genre(1, "Комедия"));
         genres.put(2, new Genre(2, "Драма"));
         genres.put(3, new Genre(3, "Мультфильм"));
@@ -24,7 +24,7 @@ public class InMemoryGenreMpaStorage implements GenreMpaStorage {
         genres.put(5, new Genre(5, "Документальный"));
         genres.put(6, new Genre(6, "Боевик"));
 
-        // Инициализируем MPA рейтинги
+        // Инициализируем MPA рейтинги с корректными названиями
         mpaRatings.put(1, new MpaRating(1, "G", "Нет возрастных ограничений"));
         mpaRatings.put(2, new MpaRating(2, "PG", "Рекомендуется присутствие родителей"));
         mpaRatings.put(3, new MpaRating(3, "PG-13", "Детям до 13 лет просмотр не желателен"));
