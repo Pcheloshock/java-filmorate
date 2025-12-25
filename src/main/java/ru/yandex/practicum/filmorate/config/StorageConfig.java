@@ -21,7 +21,7 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary  // Добавьте @Primary здесь для in-memory режима
+    @Primary
     public FilmStorage inMemoryFilmStorage() {
         return new InMemoryFilmStorage();
     }
@@ -34,7 +34,7 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary  // Добавьте @Primary здесь для in-memory режима
+    @Primary
     public UserStorage inMemoryUserStorage() {
         return new InMemoryUserStorage();
     }
@@ -47,7 +47,7 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary  // Добавьте @Primary здесь для in-memory режима
+    @Primary
     public GenreMpaStorage inMemoryGenreMpaStorage() {
         return new InMemoryGenreMpaStorage();
     }
