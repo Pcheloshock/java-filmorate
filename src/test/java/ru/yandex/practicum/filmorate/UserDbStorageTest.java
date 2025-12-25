@@ -1,84 +1,102 @@
 package ru.yandex.practicum.filmorate;
 
-import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserDbStorage;
+
 import java.time.LocalDate;
-import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-@JdbcTest
-@AutoConfigureTestDatabase
-@Import(TestJdbcConfig.class)  // Добавьте эту аннотацию!
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@JdbcTest(includeFilters = @ComponentScan.Filter(
+        type = FilterType.ASSIGNABLE_TYPE,
+        classes = {UserDbStorage.class}
+))
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@TestPropertySource(properties = "filmorate.storage.type=jdbc")
 class UserDbStorageTest {
-    private final UserDbStorage userStorage;
 
-    @Test
-    public void testCreateAndFindUser() {
-        User user = User.builder()
-                .email("test@email.com")
-                .login("testLogin")
-                .name("Test Name")
+    @Autowired
+    private UserDbStorage userStorage;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    private User testUser;
+
+    @BeforeEach
+    void setUp() {
+        // Очистка таблиц перед каждым тестом
+        jdbcTemplate.update("DELETE FROM friendships");
+        jdbcTemplate.update("DELETE FROM film_likes");
+        jdbcTemplate.update("DELETE FROM users");
+
+        testUser = User.builder()
+                .email("test@test.com")
+                .login("testuser")
+                .name("Test User")
                 .birthday(LocalDate.of(1990, 1, 1))
                 .build();
+    }
 
-        User createdUser = userStorage.create(user);
-
+    @Test
+    void testCreateAndFindUser() {
+        User createdUser = userStorage.create(testUser);
         assertThat(createdUser).isNotNull();
-        assertThat(createdUser.getId()).isPositive();
+        assertThat(createdUser.getId()).isNotNull();
 
-        Optional<User> foundUser = userStorage.findById(createdUser.getId());
-        assertThat(foundUser)
-                .isPresent()
-                .hasValueSatisfying(u ->
-                        assertThat(u.getEmail()).isEqualTo("test@email.com")
-                );
+        var foundUser = userStorage.findById(createdUser.getId());
+        assertThat(foundUser).isPresent();
+        assertThat(foundUser.get().getEmail()).isEqualTo("test@test.com");
+        assertThat(foundUser.get().getLogin()).isEqualTo("testuser");
     }
 
     @Test
-    public void testUpdateUser() {
-        User user = User.builder()
-                .email("old@email.com")
-                .login("oldLogin")
-                .name("Old Name")
-                .birthday(LocalDate.of(1990, 1, 1))
-                .build();
+    void testUpdateUser() {
+        User createdUser = userStorage.create(testUser);
+        assertThat(createdUser.getId()).isNotNull();
 
-        User createdUser = userStorage.create(user);
-        createdUser.setEmail("new@email.com");
-        createdUser.setName("New Name");
-
-        User updatedUser = userStorage.update(createdUser);
-
-        assertThat(updatedUser.getEmail()).isEqualTo("new@email.com");
-        assertThat(updatedUser.getName()).isEqualTo("New Name");
-    }
-
-    @Test
-    public void testFindAllUsers() {
-        User user1 = User.builder()
-                .email("user1@email.com")
-                .login("user1")
-                .name("User One")
-                .birthday(LocalDate.of(1990, 1, 1))
-                .build();
-
-        User user2 = User.builder()
-                .email("user2@email.com")
-                .login("user2")
-                .name("User Two")
+        User updatedUser = User.builder()
+                .id(createdUser.getId())
+                .email("updated@test.com")
+                .login("updateduser")
+                .name("Updated User")
                 .birthday(LocalDate.of(1995, 1, 1))
                 .build();
 
-        userStorage.create(user1);
-        userStorage.create(user2);
+        User result = userStorage.update(updatedUser);
+        assertThat(result.getEmail()).isEqualTo("updated@test.com");
+        assertThat(result.getLogin()).isEqualTo("updateduser");
 
-        assertThat(userStorage.findAll()).hasSize(2);
+        var foundUser = userStorage.findById(createdUser.getId());
+        assertThat(foundUser).isPresent();
+        assertThat(foundUser.get().getEmail()).isEqualTo("updated@test.com");
+    }
+
+    @Test
+    void testFindAllUsers() {
+        userStorage.create(testUser);
+
+        User secondUser = User.builder()
+                .email("second@test.com")
+                .login("seconduser")
+                .name("Second User")
+                .birthday(LocalDate.of(1992, 1, 1))
+                .build();
+        userStorage.create(secondUser);
+
+        var allUsers = userStorage.findAll();
+        assertThat(allUsers).hasSize(2);
+        assertThat(allUsers).extracting("email")
+                .containsExactlyInAnyOrder("test@test.com", "second@test.com");
     }
 }

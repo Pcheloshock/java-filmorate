@@ -1,5 +1,6 @@
 package ru.yandex.practicum.filmorate.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,39 +16,39 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
+    @Primary
     public FilmStorage filmDbStorage(JdbcTemplate jdbcTemplate) {
         return new FilmDbStorage(jdbcTemplate);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary
+    @ConditionalOnMissingBean(FilmStorage.class)
     public FilmStorage inMemoryFilmStorage() {
         return new InMemoryFilmStorage();
     }
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
+    @Primary
     public UserStorage userDbStorage(JdbcTemplate jdbcTemplate) {
         return new UserDbStorage(jdbcTemplate);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary
+    @ConditionalOnMissingBean(UserStorage.class)
     public UserStorage inMemoryUserStorage() {
         return new InMemoryUserStorage();
     }
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
+    @Primary
     public GenreMpaStorage genreMpaDbStorage(JdbcTemplate jdbcTemplate) {
         return new GenreMpaDbStorage(jdbcTemplate);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "memory")
-    @Primary
+    @ConditionalOnMissingBean(GenreMpaStorage.class)
     public GenreMpaStorage inMemoryGenreMpaStorage() {
         return new InMemoryGenreMpaStorage();
     }
