@@ -1,5 +1,6 @@
 package ru.yandex.practicum.filmorate.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +17,7 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
+    @ConditionalOnBean(JdbcTemplate.class)  // Добавить эту проверку
     @Primary
     public FilmStorage filmDbStorage(JdbcTemplate jdbcTemplate) {
         return new FilmDbStorage(jdbcTemplate);

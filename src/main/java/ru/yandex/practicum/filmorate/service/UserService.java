@@ -75,6 +75,9 @@ public class UserService {
         if (user.getFriends() == null) {
             user.setFriends(new HashSet<>());
         }
+        if (userId == friendId) {
+            throw new ValidationException("Пользователь не может добавить себя в друзья");
+        }
         user.getFriends().add(friendId);
         userStorage.update(user);
     }

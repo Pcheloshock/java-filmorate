@@ -73,7 +73,7 @@ public class FilmService {
         }
 
         // Для int используем != 0, так как 0 - значение по умолчанию
-        if (film.getDuration() != 0) {
+        if (film.getDuration() != null) {
             if (film.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
             }

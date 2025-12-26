@@ -68,33 +68,113 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> findAll() {
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
+        String filmsSql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id";
-        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper());
 
-        // Загружаем жанры и лайки для каждого фильма
-        films.forEach(film -> {
-            loadGenres(film);
-            loadLikes(film);
-        });
+        List<Film> films = jdbcTemplate.query(filmsSql, new FilmRowMapper());
+
+        // Загружаем все жанры одним запросом
+        loadAllGenres(films);
+        loadAllLikes(films);
 
         return films;
+    }
+
+    private void loadAllLikes(List<Film> films) {
+        if (films.isEmpty()) return;
+
+        // Создаем список ID фильмов
+        List<Integer> filmIds = films.stream()
+                .map(Film::getId)
+                .collect(Collectors.toList());
+
+        // Создаем строку с плейсхолдерами для SQL IN
+        String placeholders = filmIds.stream()
+                .map(id -> "?")
+                .collect(Collectors.joining(","));
+
+        String sql = String.format(
+                "SELECT film_id, user_id FROM film_likes WHERE film_id IN (%s)",
+                placeholders
+        );
+
+        // Загружаем все лайки за один запрос
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, filmIds.toArray());
+
+        // Группируем лайки по ID фильма
+        Map<Integer, Set<Integer>> likesByFilmId = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Integer filmId = (Integer) row.get("film_id");
+            Integer userId = (Integer) row.get("user_id");
+
+            likesByFilmId.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
+        }
+
+        // Присваиваем лайки фильмам
+        for (Film film : films) {
+            Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
+            film.setLikes(likes);
+            film.setRate(likes.size());
+        }
+    }
+
+    private void loadAllGenres(List<Film> films) {
+        if (films.isEmpty()) return;
+
+        // Создаем список ID фильмов
+        List<Integer> filmIds = films.stream()
+                .map(Film::getId)
+                .collect(Collectors.toList());
+
+        // Создаем строку с плейсхолдерами для SQL IN
+        String placeholders = filmIds.stream()
+                .map(id -> "?")
+                .collect(Collectors.joining(","));
+
+        String sql = String.format(
+                "SELECT fg.film_id, g.id, g.name " +
+                        "FROM film_genres fg " +
+                        "JOIN genres g ON fg.genre_id = g.id " +
+                        "WHERE fg.film_id IN (%s) " +
+                        "ORDER BY fg.film_id, g.id",
+                placeholders
+        );
+
+        // Выполняем запрос
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, filmIds.toArray());
+
+        // Группируем жанры по ID фильма
+        Map<Integer, Set<Genre>> genresByFilmId = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Integer filmId = (Integer) row.get("film_id");
+
+            Genre genre = new Genre();
+            genre.setId((Integer) row.get("id"));
+            genre.setName((String) row.get("name"));
+
+            genresByFilmId.computeIfAbsent(filmId, k -> new LinkedHashSet<>()).add(genre);
+        }
+
+        // Присваиваем жанры фильмам
+        for (Film film : films) {
+            Set<Genre> genres = genresByFilmId.getOrDefault(film.getId(), new LinkedHashSet<>());
+            film.setGenres(genres);
+        }
     }
 
     @Override
     public Optional<Film> findById(int id) {
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id WHERE f.id = ?";
-        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), id);
 
-        if (films.isEmpty()) {
-            return Optional.empty();
-        }
-
-        Film film = films.get(0);
-        loadGenres(film);
-        loadLikes(film);
-        return Optional.of(film);
+        return jdbcTemplate.query(sql, new FilmRowMapper(), id)
+                .stream()
+                .findFirst()
+                .map(film -> {
+                    loadGenres(film);
+                    loadLikes(film);
+                    return film;
+                });
     }
 
     @Override

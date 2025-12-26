@@ -29,10 +29,9 @@ public class FilmController {
         return filmService.update(film);
     }
 
-    // остальные методы без изменений
     @GetMapping
     public List<Film> getAllFilms() {
-        return filmService.findAll();  // ИСПРАВЛЕНО: было finalize()
+        return filmService.findAll();
     }
 
     @GetMapping("/{id}")
