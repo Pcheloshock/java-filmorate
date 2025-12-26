@@ -8,7 +8,7 @@ import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 @TestConfiguration
-@Profile("test")  // Добавлена аннотация профиля
+@Profile("test")
 public class ControllerTestConfig {
 
     @Bean
