@@ -1,6 +1,5 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
-import org.springframework.stereotype.Component;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.model.MpaRating;
@@ -10,7 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Component
+
 public class InMemoryGenreMpaStorage implements GenreMpaStorage {
     private final Map<Integer, Genre> genres = new HashMap<>();
     private final Map<Integer, MpaRating> mpaRatings = new HashMap<>();
