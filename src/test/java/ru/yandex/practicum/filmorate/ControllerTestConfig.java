@@ -2,7 +2,6 @@ package ru.yandex.practicum.filmorate;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import ru.yandex.practicum.filmorate.storage.film.*;
 import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
@@ -11,20 +10,17 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 public class ControllerTestConfig {
 
     @Bean
-    @Primary
-    public FilmStorage inMemoryFilmStorage() {
+    public FilmStorage testFilmStorage() {  // Измените имя
         return new InMemoryFilmStorage();
     }
 
     @Bean
-    @Primary
-    public UserStorage inMemoryUserStorage() {
+    public UserStorage testUserStorage() {  // Измените имя
         return new InMemoryUserStorage();
     }
 
     @Bean
-    @Primary
-    public GenreMpaStorage inMemoryGenreMpaStorage() {
+    public GenreMpaStorage testGenreMpaStorage() {  // Измените имя
         return new InMemoryGenreMpaStorage();
     }
 }
