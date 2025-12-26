@@ -17,11 +17,12 @@ import java.time.LocalDate;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")  // Добавлена аннотация для профиля
-@TestPropertySource(properties = "filmorate.storage.type=memory")
-class FilmControllerIntegrationTest {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
+@TestPropertySource(properties = {
+        "server.port=8080",
+        "filmorate.storage.type=jdbc"
+})
+public class FilmControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
