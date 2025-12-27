@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -177,12 +178,29 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public void addLike(int filmId, int userId) {
+        // Проверяем, существует ли фильм
+        if (!existsById(filmId)) {
+            throw new NotFoundException("Фильм с ID " + filmId + " не найден");
+        }
+
+        // Проверяем, существует ли пользователь
+        String checkUserSql = "SELECT COUNT(*) FROM users WHERE id = ?";
+        Integer userCount = jdbcTemplate.queryForObject(checkUserSql, Integer.class, userId);
+        if (userCount == null || userCount == 0) {
+            throw new NotFoundException("Пользователь с ID " + userId + " не найден");
+        }
+
+        // Проверяем, не поставлен ли уже лайк
         String checkSql = "SELECT COUNT(*) FROM film_likes WHERE film_id = ? AND user_id = ?";
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, filmId, userId);
 
         if (count == null || count == 0) {
             String insertSql = "INSERT INTO film_likes (film_id, user_id) VALUES (?, ?)";
-            jdbcTemplate.update(insertSql, filmId, userId);
+            try {
+                jdbcTemplate.update(insertSql, filmId, userId);
+            } catch (DataIntegrityViolationException e) {
+                throw new NotFoundException("Не удалось добавить лайк. Проверьте существование фильма и пользователя.");
+            }
         }
     }
 
@@ -204,20 +222,12 @@ public class FilmDbStorage implements FilmStorage {
                 "    FROM film_likes " +
                 "    GROUP BY film_id " +
                 ") l ON f.id = l.film_id " +
-                "ORDER BY COALESCE(l.likes_count, 0) DESC, f.id DESC " +
+                "ORDER BY likes_count DESC, f.id DESC " +
                 "LIMIT ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
         loadAllGenres(films);
         loadAllLikes(films);
-
-        // Отладочный вывод (можно убрать после исправления)
-        System.out.println("Popular films: " + films.size());
-        for (int i = 0; i < Math.min(films.size(), 5); i++) {
-            Film film = films.get(i);
-            System.out.println("Film " + film.getId() + " - " + film.getName() +
-                    " - likes: " + (film.getLikes() != null ? film.getLikes().size() : 0));
-        }
 
         return films;
     }
