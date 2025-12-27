@@ -61,6 +61,15 @@ public class FilmController {
         log.info("Запрос {} популярных фильмов", count);
         List<Film> films = filmService.getPopularFilms(count);
         log.info("Возвращено {} фильмов", films.size());
+
+        // Детальная информация о каждом фильме
+        for (int i = 0; i < films.size(); i++) {
+            Film film = films.get(i);
+            log.info("Фильм {}: id={}, name='{}', rate={}, likes={}",
+                    i + 1, film.getId(), film.getName(),
+                    film.getRate(), film.getLikes() != null ? film.getLikes().size() : 0);
+        }
+
         log.info("Фильмы: {}", films.stream()
                 .map(Film::getName)
                 .collect(Collectors.toList()));
