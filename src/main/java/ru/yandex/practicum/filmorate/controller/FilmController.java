@@ -9,6 +9,7 @@ import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/films")
@@ -58,7 +59,12 @@ public class FilmController {
     @GetMapping("/popular")
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
-        return filmService.getPopularFilms(count);
+        List<Film> films = filmService.getPopularFilms(count);
+        log.info("Возвращено {} фильмов", films.size());
+        log.info("Фильмы: {}", films.stream()
+                .map(Film::getName)
+                .collect(Collectors.toList()));
+        return films;
     }
 
     @GetMapping("/search")

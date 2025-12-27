@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -118,7 +119,7 @@ public class FilmDbStorage implements FilmStorage {
         for (Film film : films) {
             Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
             film.setLikes(likes);
-            film.setRate(likes.size());  // Устанавливаем rate по количеству лайков
+            // Не устанавливаем rate здесь, он уже установлен из likes_count в FilmRowMapper
         }
     }
 
@@ -237,6 +238,28 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Получение {} популярных фильмов", count);
 
+        // Получаем общее количество фильмов
+        String allFilmsSql = "SELECT COUNT(*) FROM films";
+        Integer totalFilms = jdbcTemplate.queryForObject(allFilmsSql, Integer.class);
+        log.info("Всего фильмов в базе: {}", totalFilms);
+
+        if (totalFilms == null || totalFilms == 0) {
+            log.info("В базе нет фильмов");
+            return List.of();
+        }
+
+        // Получаем ID всех фильмов в базе для диагностики
+        String allFilmIdsSql = "SELECT id, name FROM films ORDER BY id";
+        List<Map<String, Object>> allFilms = jdbcTemplate.queryForList(allFilmIdsSql);
+        log.info("Все фильмы в базе: {}", allFilms.stream()
+                .map(f -> String.format("{id=%s, name=%s}", f.get("id"), f.get("name")))
+                .collect(Collectors.toList()));
+
+        // Если запрашиваем больше, чем есть, возвращаем все
+        int actualCount = Math.min(count, totalFilms);
+        log.info("Будет возвращено {} фильмов (запрошено {}, всего в базе {})",
+                actualCount, count, totalFilms);
+
         // Простой и надежный запрос
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
                 "COUNT(fl.user_id) as likes_count " +
@@ -247,12 +270,15 @@ public class FilmDbStorage implements FilmStorage {
                 "ORDER BY COUNT(fl.user_id) DESC, f.id " +
                 "LIMIT ?";
 
-        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
+        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), actualCount);
         loadAllGenres(films);
-        // Важно: loadAllLikes перезаписывает rate, поэтому нужно вызвать его после загрузки лайков
+        // Загружаем лайки (но не перезаписываем rate)
         loadAllLikes(films);
 
         log.info("Найдено {} популярных фильмов", films.size());
+        log.info("ID популярных фильмов: {}", films.stream()
+                .map(Film::getId)
+                .collect(Collectors.toList()));
         return films;
     }
 
@@ -304,8 +330,7 @@ public class FilmDbStorage implements FilmStorage {
                 (rs, rowNum) -> rs.getInt("user_id"),
                 film.getId());
         film.setLikes(new HashSet<>(likes));
-        film.setRate(likes.size());
-
+        // Убрать film.setRate(likes.size());
         log.info("Загружено {} лайков для фильма ID {}", likes.size(), film.getId());
     }
 
