@@ -86,75 +86,53 @@ public class UserDbStorage implements UserStorage {
     }
 
     private void loadFriends(User user) {
-        String sql = "SELECT friend_id FROM friendships WHERE user_id = ? AND status = 'CONFIRMED' " +
-                "UNION SELECT user_id FROM friendships WHERE friend_id = ? AND status = 'CONFIRMED'";
+        String sql = "SELECT friend_id FROM friendships WHERE user_id = ?";
         List<Integer> friendIds = jdbcTemplate.query(sql,
                 (rs, rowNum) -> rs.getInt("friend_id"),
-                user.getId(), user.getId());
+                user.getId());
         user.setFriends(new HashSet<>(friendIds));
     }
 
+    @Override
     public void addFriend(int userId, int friendId) {
-        // Проверяем, существует ли уже дружба
+        // Проверяем существование пользователей
+        if (!existsById(userId) || !existsById(friendId)) {
+            throw new NotFoundException("Пользователь не найден");
+        }
+
+        // Проверяем, нет ли уже такой дружбы
         String checkSql = "SELECT COUNT(*) FROM friendships WHERE user_id = ? AND friend_id = ?";
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, userId, friendId);
 
         if (count == null || count == 0) {
-            // Создаем новую неподтвержденную дружбу
+            // Создаем неподтвержденную дружбу
             String insertSql = "INSERT INTO friendships (user_id, friend_id, status) VALUES (?, ?, 'UNCONFIRMED')";
             jdbcTemplate.update(insertSql, userId, friendId);
         }
-
-        // Проверяем, есть ли обратная дружба
-        Integer reverseCount = jdbcTemplate.queryForObject(checkSql, Integer.class, friendId, userId);
-        if (reverseCount != null && reverseCount > 0) {
-            // Подтверждаем обе дружбы
-            String updateSql = "UPDATE friendships SET status = 'CONFIRMED' WHERE " +
-                    "(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)";
-            jdbcTemplate.update(updateSql, userId, friendId, friendId, userId);
-        }
     }
 
+    @Override
     public void removeFriend(int userId, int friendId) {
-        // Проверяем существование пользователей
-        if (!existsById(userId)) {
-            throw new NotFoundException("Пользователь с ID " + userId + " не найден");
-        }
-        if (!existsById(friendId)) {
-            throw new NotFoundException("Пользователь с ID " + friendId + " не найден");
-        }
-
         String sql = "DELETE FROM friendships WHERE user_id = ? AND friend_id = ?";
         jdbcTemplate.update(sql, userId, friendId);
-
-        // Если была взаимная дружба, меняем статус обратной связи на UNCONFIRMED
-        String updateSql = "UPDATE friendships SET status = 'UNCONFIRMED' WHERE user_id = ? AND friend_id = ?";
-        jdbcTemplate.update(updateSql, friendId, userId);
     }
 
+    @Override
     public List<User> getFriends(int userId) {
         String sql = "SELECT u.* FROM users u " +
-                "JOIN friendships f1 ON u.id = f1.friend_id AND f1.user_id = ? AND f1.status = 'CONFIRMED' " +
-                "UNION " +
-                "SELECT u.* FROM users u " +
-                "JOIN friendships f2 ON u.id = f2.user_id AND f2.friend_id = ? AND f2.status = 'CONFIRMED'";
-        return jdbcTemplate.query(sql, new UserRowMapper(), userId, userId);
+                "JOIN friendships f ON u.id = f.friend_id " +
+                "WHERE f.user_id = ?";
+        return jdbcTemplate.query(sql, new UserRowMapper(), userId);
     }
 
+    @Override
     public List<User> getCommonFriends(int userId, int otherId) {
         String sql = "SELECT u.* FROM users u " +
-                "WHERE u.id IN (" +
-                "    SELECT friend_id FROM friendships WHERE user_id = ? AND status = 'CONFIRMED' " +
-                "    INTERSECT " +
-                "    SELECT friend_id FROM friendships WHERE user_id = ? AND status = 'CONFIRMED'" +
-                ") " +
-                "OR u.id IN (" +
-                "    SELECT user_id FROM friendships WHERE friend_id = ? AND status = 'CONFIRMED' " +
-                "    INTERSECT " +
-                "    SELECT user_id FROM friendships WHERE friend_id = ? AND status = 'CONFIRMED'" +
-                ")";
-        return jdbcTemplate.query(sql, new UserRowMapper(), userId, otherId, userId, otherId);
+                "JOIN friendships f1 ON u.id = f1.friend_id AND f1.user_id = ? " +
+                "JOIN friendships f2 ON u.id = f2.friend_id AND f2.user_id = ?";
+        return jdbcTemplate.query(sql, new UserRowMapper(), userId, otherId);
     }
+
 
     private static class UserRowMapper implements RowMapper<User> {
         @Override

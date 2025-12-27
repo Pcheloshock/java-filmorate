@@ -8,7 +8,6 @@ import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -72,51 +71,34 @@ public class UserService {
         User user = findById(userId);
         User friend = findById(friendId);
 
-        if (user.getFriends() == null) {
-            user.setFriends(new HashSet<>());
-        }
         if (userId == friendId) {
             throw new ValidationException("Пользователь не может добавить себя в друзья");
         }
-        user.getFriends().add(friendId);
-        userStorage.update(user);
+
+        // Делегируем логику добавления друзей хранилищу
+        userStorage.addFriend(userId, friendId);
     }
 
     public void removeFriend(int userId, int friendId) {
         User user = findById(userId);
-        User friend = findById(friendId); // Проверяем существование друга
+        User friend = findById(friendId);
 
-        if (user.getFriends() != null) {
-            // Если друг есть в списке - удаляем
-            if (user.getFriends().contains(friendId)) {
-                user.getFriends().remove(friendId);
-                userStorage.update(user);
-            }
-            // Если друга нет в списке - тоже OK (идемпотентность)
-        }
+        // Делегируем логику удаления друзей хранилищу
+        userStorage.removeFriend(userId, friendId);
     }
 
     public List<User> getFriends(int userId) {
         User user = findById(userId);
-        if (user.getFriends() == null || user.getFriends().isEmpty()) {
-            return new ArrayList<>();
-        }
-        return user.getFriends().stream()
-                .map(this::findById)
-                .collect(Collectors.toList());
+        // Используем метод хранилища для получения списка друзей
+        return userStorage.getFriends(userId);
     }
 
     public List<User> getCommonFriends(int userId, int otherId) {
         User user = findById(userId);
         User otherUser = findById(otherId);
 
-        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends() : new HashSet<>();
-        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends() : new HashSet<>();
-
-        return userFriends.stream()
-                .filter(otherFriends::contains)
-                .map(this::findById)
-                .collect(Collectors.toList());
+        // Используем метод хранилища для получения общих друзей
+        return userStorage.getCommonFriends(userId, otherId);
     }
 
     private void validateUserForCreate(User user) {

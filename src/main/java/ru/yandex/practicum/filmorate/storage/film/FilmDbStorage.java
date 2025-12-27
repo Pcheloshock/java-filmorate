@@ -166,14 +166,15 @@ public class FilmDbStorage implements FilmStorage {
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id WHERE f.id = ?";
 
-        return jdbcTemplate.query(sql, new FilmRowMapper(), id)
-                .stream()
-                .findFirst()
-                .map(film -> {
-                    loadGenres(film);
-                    loadLikes(film);
-                    return film;
-                });
+        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), id);
+        if (films.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Film film = films.get(0);
+        loadGenres(film);
+        loadLikes(film);
+        return Optional.of(film);
     }
 
     @Override
@@ -209,12 +210,13 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> getPopularFilms(int count) {
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
+        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
+                "COUNT(fl.user_id) as likes_count " +
                 "FROM films f " +
                 "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
                 "LEFT JOIN film_likes fl ON f.id = fl.film_id " +
                 "GROUP BY f.id, m.id, m.name, m.description " +
-                "ORDER BY COUNT(fl.user_id) DESC " +
+                "ORDER BY likes_count DESC " +
                 "LIMIT ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);

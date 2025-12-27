@@ -50,6 +50,15 @@ public class GlobalExceptionHandler {
         return error;
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleConstraintViolationException(ConstraintViolationException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Нарушение ограничений базы данных");
+        log.warn("Ошибка ограничений БД: {}", ex.getMessage());
+        return error;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleValidationExceptions(MethodArgumentNotValidException ex) {

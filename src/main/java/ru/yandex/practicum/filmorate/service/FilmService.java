@@ -12,7 +12,6 @@ import ru.yandex.practicum.filmorate.storage.film.GenreMpaStorage;
 
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -138,14 +137,8 @@ public class FilmService {
     }
 
     public List<Film> getPopularFilms(int count) {
-        return filmStorage.findAll().stream()
-                .sorted((f1, f2) -> {
-                    int likes1 = f1.getLikes() != null ? f1.getLikes().size() : 0;
-                    int likes2 = f2.getLikes() != null ? f2.getLikes().size() : 0;
-                    return Integer.compare(likes2, likes1);
-                })
-                .limit(count)
-                .collect(Collectors.toList());
+        // Используем метод хранилища, который уже должен быть оптимизирован
+        return filmStorage.getPopularFilms(count);
     }
 
     private void validateFilmForCreate(Film film) {

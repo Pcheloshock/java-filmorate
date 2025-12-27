@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.service.UserService;
+
 import java.util.List;
 
 @RestController
@@ -23,12 +24,11 @@ public class UserController {
     }
 
     @PutMapping
-    public User updateUser(@RequestBody User user) { // Убрали @Valid
+    public User updateUser(@RequestBody User user) {
         log.info("Обновление пользователя: {}", user);
         return userService.update(user);
     }
 
-    // остальные методы без изменений
     @GetMapping
     public List<User> getAllUsers() {
         return userService.findAll();

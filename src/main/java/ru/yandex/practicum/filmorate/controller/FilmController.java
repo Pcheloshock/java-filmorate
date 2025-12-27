@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
+
 import java.util.List;
 
 @RestController
@@ -24,7 +25,7 @@ public class FilmController {
     }
 
     @PutMapping
-    public Film updateFilm(@RequestBody Film film) { // Убрали @Valid
+    public Film updateFilm(@RequestBody Film film) {
         log.info("Обновление фильма: {}", film);
         return filmService.update(film);
     }
