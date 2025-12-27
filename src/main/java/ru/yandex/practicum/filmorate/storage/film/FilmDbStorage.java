@@ -309,6 +309,7 @@ public class FilmDbStorage implements FilmStorage {
         log.info("Storage: Найдено {} популярных фильмов", films.size());
         return films;
     }
+
     private void saveGenres(Film film) {
         if (film.getGenres() != null && !film.getGenres().isEmpty()) {
             Set<Genre> uniqueGenres = film.getGenres().stream()
