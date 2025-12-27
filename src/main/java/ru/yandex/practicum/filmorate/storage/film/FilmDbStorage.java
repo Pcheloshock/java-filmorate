@@ -251,7 +251,7 @@ public class FilmDbStorage implements FilmStorage {
                 (rs, rowNum) -> rs.getInt("user_id"),
                 film.getId());
         film.setLikes(new HashSet<>(likes));
-        film.setRate(likes.size());
+        film.setRate(likes.size());  // Устанавливаем количество лайков
     }
 
     private static class FilmRowMapper implements RowMapper<Film> {
