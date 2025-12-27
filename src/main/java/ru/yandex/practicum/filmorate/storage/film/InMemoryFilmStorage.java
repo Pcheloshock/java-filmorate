@@ -70,7 +70,13 @@ public class InMemoryFilmStorage implements FilmStorage {
                 .sorted((f1, f2) -> {
                     int likes1 = f1.getLikes() != null ? f1.getLikes().size() : 0;
                     int likes2 = f2.getLikes() != null ? f2.getLikes().size() : 0;
-                    return Integer.compare(likes2, likes1);
+                    // Сначала сравниваем по количеству лайков (по убыванию)
+                    int likesComparison = Integer.compare(likes2, likes1);
+                    if (likesComparison != 0) {
+                        return likesComparison;
+                    }
+                    // При равном количестве лайков - по ID (по убыванию)
+                    return Integer.compare(f2.getId(), f1.getId());
                 })
                 .limit(count)
                 .collect(Collectors.toList());
