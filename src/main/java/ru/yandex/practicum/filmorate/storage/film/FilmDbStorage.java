@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -194,18 +195,31 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> getPopularFilms(int count) {
+        // Используем корректный запрос для H2
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "(SELECT COUNT(*) FROM film_likes fl WHERE fl.film_id = f.id) as likes_count " +
+                "COALESCE(l.likes_count, 0) as likes_count " +
                 "FROM films f " +
                 "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
-                "ORDER BY likes_count DESC, f.id DESC " +
+                "LEFT JOIN ( " +
+                "    SELECT film_id, COUNT(*) as likes_count " +
+                "    FROM film_likes " +
+                "    GROUP BY film_id " +
+                ") l ON f.id = l.film_id " +
+                "ORDER BY COALESCE(l.likes_count, 0) DESC, f.id DESC " +
                 "LIMIT ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
-        films.forEach(film -> {
-            loadGenres(film);
-            loadLikes(film);
-        });
+        loadAllGenres(films);
+        loadAllLikes(films);
+
+        // Отладочный вывод (можно убрать после исправления)
+        System.out.println("Popular films: " + films.size());
+        for (int i = 0; i < Math.min(films.size(), 5); i++) {
+            Film film = films.get(i);
+            System.out.println("Film " + film.getId() + " - " + film.getName() +
+                    " - likes: " + (film.getLikes() != null ? film.getLikes().size() : 0));
+        }
+
         return films;
     }
 
@@ -251,7 +265,7 @@ public class FilmDbStorage implements FilmStorage {
                 (rs, rowNum) -> rs.getInt("user_id"),
                 film.getId());
         film.setLikes(new HashSet<>(likes));
-        film.setRate(likes.size());  // Устанавливаем количество лайков
+        film.setRate(likes.size());
     }
 
     private static class FilmRowMapper implements RowMapper<Film> {
@@ -264,6 +278,11 @@ public class FilmDbStorage implements FilmStorage {
             film.setReleaseDate(rs.getDate("release_date").toLocalDate());
             film.setDuration(rs.getInt("duration"));
 
+            // Устанавливаем количество лайков из запроса
+            int likesCount = rs.getInt("likes_count");
+            film.setRate(likesCount);
+
+            // Устанавливаем MPA рейтинг
             int mpaId = rs.getInt("mpa_rating_id");
             if (mpaId != 0) {
                 MpaRating mpa = new MpaRating();

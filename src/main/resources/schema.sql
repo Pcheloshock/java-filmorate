@@ -41,9 +41,11 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS film_likes (
-    film_id INTEGER REFERENCES films(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (film_id, user_id)
+    film_id INT NOT NULL,
+    user_id INT NOT NULL,
+    PRIMARY KEY (film_id, user_id),
+    FOREIGN KEY (film_id) REFERENCES films(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS friendships (
@@ -52,3 +54,4 @@ CREATE TABLE IF NOT EXISTS friendships (
     status VARCHAR(20) DEFAULT 'UNCONFIRMED',
     PRIMARY KEY (user_id, friend_id)
 );
+
