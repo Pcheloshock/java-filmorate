@@ -277,8 +277,13 @@ public class FilmDbStorage implements FilmStorage {
             film.setReleaseDate(rs.getDate("release_date").toLocalDate());
             film.setDuration(rs.getInt("duration"));
 
-            // Устанавливаем количество лайков из запроса
-            int likesCount = rs.getInt("likes_count");
+            // Проверяем, есть ли колонка likes_count в результате запроса
+            int likesCount = 0;
+            try {
+                likesCount = rs.getInt("likes_count");
+            } catch (SQLException e) {
+                // Колонка не найдена, оставляем 0
+            }
             film.setRate(likesCount);
 
             // Устанавливаем MPA рейтинг
