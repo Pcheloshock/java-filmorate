@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RequiredArgsConstructor
 public class FilmDbStorage implements FilmStorage {
     private final JdbcTemplate jdbcTemplate;
@@ -23,6 +25,8 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public Film create(Film film) {
+        log.info("Создание фильма: {}", film.getName());
+
         SimpleJdbcInsert simpleJdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("films")
                 .usingGeneratedKeyColumns("id");
@@ -39,11 +43,14 @@ public class FilmDbStorage implements FilmStorage {
 
         saveGenres(film);
 
+        log.info("Фильм создан с ID: {}", film.getId());
         return findById(film.getId()).orElse(film);
     }
 
     @Override
     public Film update(Film film) {
+        log.info("Обновление фильма с ID: {}", film.getId());
+
         String sql = "UPDATE films SET name = ?, description = ?, release_date = ?, duration = ?, " +
                 "mpa_rating_id = ? WHERE id = ?";
         int rowsUpdated = jdbcTemplate.update(sql,
@@ -66,17 +73,24 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> findAll() {
+        log.info("Получение всех фильмов");
+
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper());
         loadAllGenres(films);
         loadAllLikes(films);
+
+        log.info("Найдено {} фильмов", films.size());
         return films;
     }
 
     private void loadAllLikes(List<Film> films) {
-        if (films.isEmpty()) return;
+        if (films.isEmpty()) {
+            log.info("Нет фильмов для загрузки лайков");
+            return;
+        }
 
         List<Integer> filmIds = films.stream()
                 .map(Film::getId)
@@ -106,10 +120,15 @@ public class FilmDbStorage implements FilmStorage {
             film.setLikes(likes);
             film.setRate(likes.size());
         }
+
+        log.info("Загружены лайки для {} фильмов", films.size());
     }
 
     private void loadAllGenres(List<Film> films) {
-        if (films.isEmpty()) return;
+        if (films.isEmpty()) {
+            log.info("Нет фильмов для загрузки жанров");
+            return;
+        }
 
         List<Integer> filmIds = films.stream()
                 .map(Film::getId)
@@ -145,26 +164,35 @@ public class FilmDbStorage implements FilmStorage {
             Set<Genre> genres = genresByFilmId.getOrDefault(film.getId(), new LinkedHashSet<>());
             film.setGenres(genres);
         }
+
+        log.info("Загружены жанры для {} фильмов", films.size());
     }
 
     @Override
     public Optional<Film> findById(int id) {
+        log.info("Поиск фильма по ID: {}", id);
+
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id WHERE f.id = ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), id);
         if (films.isEmpty()) {
+            log.info("Фильм с ID {} не найден", id);
             return Optional.empty();
         }
 
         Film film = films.get(0);
         loadGenres(film);
         loadLikes(film);
+
+        log.info("Фильм с ID {} найден: {}", id, film.getName());
         return Optional.of(film);
     }
 
     @Override
     public void delete(int id) {
+        log.info("Удаление фильма с ID: {}", id);
+
         String sql = "DELETE FROM films WHERE id = ?";
         jdbcTemplate.update(sql, id);
     }
@@ -178,6 +206,8 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public void addLike(int filmId, int userId) {
+        log.info("Добавление лайка: filmId={}, userId={}", filmId, userId);
+
         // Проверяем, существует ли фильм
         if (!existsById(filmId)) {
             throw new NotFoundException("Фильм с ID " + filmId + " не найден");
@@ -198,20 +228,31 @@ public class FilmDbStorage implements FilmStorage {
             String insertSql = "INSERT INTO film_likes (film_id, user_id) VALUES (?, ?)";
             try {
                 jdbcTemplate.update(insertSql, filmId, userId);
+                log.info("Лайк добавлен: filmId={}, userId={}", filmId, userId);
             } catch (DataIntegrityViolationException e) {
                 throw new NotFoundException("Не удалось добавить лайк. Проверьте существование фильма и пользователя.");
             }
+        } else {
+            log.info("Лайк уже существует: filmId={}, userId={}", filmId, userId);
         }
     }
 
     @Override
     public void removeLike(int filmId, int userId) {
+        log.info("Удаление лайка: filmId={}, userId={}", filmId, userId);
+
         String sql = "DELETE FROM film_likes WHERE film_id = ? AND user_id = ?";
-        jdbcTemplate.update(sql, filmId, userId);
+        int rowsDeleted = jdbcTemplate.update(sql, filmId, userId);
+
+        if (rowsDeleted > 0) {
+            log.info("Лайк удален: filmId={}, userId={}", filmId, userId);
+        }
     }
 
     @Override
     public List<Film> getPopularFilms(int count) {
+        log.info("Получение {} популярных фильмов", count);
+
         // Используем корректный запрос для H2
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
                 "COALESCE(l.likes_count, 0) as likes_count " +
@@ -222,12 +263,19 @@ public class FilmDbStorage implements FilmStorage {
                 "    FROM film_likes " +
                 "    GROUP BY film_id " +
                 ") l ON f.id = l.film_id " +
-                "ORDER BY likes_count DESC, f.id DESC " +
+                "ORDER BY COALESCE(l.likes_count, 0) DESC, f.id DESC " +
                 "LIMIT ?";
 
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
         loadAllGenres(films);
         loadAllLikes(films);
+
+        // Отладочный вывод
+        log.info("Найдено {} популярных фильмов", films.size());
+        for (Film film : films) {
+            log.info("Фильм {} - '{}' - лайков: {}", film.getId(), film.getName(),
+                    (film.getLikes() != null ? film.getLikes().size() : 0));
+        }
 
         return films;
     }
@@ -243,12 +291,16 @@ public class FilmDbStorage implements FilmStorage {
             uniqueGenres.forEach(genre -> {
                 jdbcTemplate.update(sql, film.getId(), genre.getId());
             });
+
+            log.info("Сохранены жанры для фильма ID {}: {}", film.getId(),
+                    uniqueGenres.stream().map(Genre::getName).collect(Collectors.joining(", ")));
         }
     }
 
     private void deleteGenres(int filmId) {
         String sql = "DELETE FROM film_genres WHERE film_id = ?";
         jdbcTemplate.update(sql, filmId);
+        log.info("Удалены жанры для фильма ID: {}", filmId);
     }
 
     private void loadGenres(Film film) {
@@ -266,6 +318,8 @@ public class FilmDbStorage implements FilmStorage {
 
         Set<Genre> sortedGenres = new LinkedHashSet<>(genres);
         film.setGenres(sortedGenres);
+
+        log.info("Загружены {} жанров для фильма ID {}", genres.size(), film.getId());
     }
 
     private void loadLikes(Film film) {
@@ -275,6 +329,8 @@ public class FilmDbStorage implements FilmStorage {
                 film.getId());
         film.setLikes(new HashSet<>(likes));
         film.setRate(likes.size());
+
+        log.info("Загружено {} лайков для фильма ID {}", likes.size(), film.getId());
     }
 
     private static class FilmRowMapper implements RowMapper<Film> {
