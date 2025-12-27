@@ -11,12 +11,13 @@ import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
 import ru.yandex.practicum.filmorate.storage.film.GenreMpaStorage;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class FilmService {
-    @Qualifier("filmDbStorage")  // Явно указываем, какой бин использовать
+    @Qualifier("filmDbStorage")
     private final FilmStorage filmStorage;
     private final UserService userService;
     private final GenreMpaStorage genreMpaStorage;
@@ -24,7 +25,6 @@ public class FilmService {
     public Film create(Film film) {
         validateFilmForCreate(film);
 
-        // Проверяем существование MPA - ДО сохранения фильма
         if (film.getMpa() != null) {
             try {
                 genreMpaStorage.getMpaRatingById(film.getMpa().getId());
@@ -33,7 +33,6 @@ public class FilmService {
             }
         }
 
-        // Проверяем существование жанров - ДО сохранения фильма
         if (film.getGenres() != null && !film.getGenres().isEmpty()) {
             for (Genre genre : film.getGenres()) {
                 try {
@@ -51,7 +50,6 @@ public class FilmService {
         Film existingFilm = filmStorage.findById(film.getId())
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
-        // Частичное обновление - ТОЛЬКО если передано значение
         if (film.getName() != null) {
             if (film.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -60,20 +58,17 @@ public class FilmService {
         }
 
         if (film.getDescription() != null) {
-            // Длина 200 допустима! (тест shouldAcceptDescriptionAtMaxLength)
             if (film.getDescription().length() > 200) {
                 throw new ValidationException("Максимальная длина описания — 200 символов");
             }
             existingFilm.setDescription(film.getDescription());
         }
 
-        // ВАЖНО: releaseDate может быть null для частичного обновления!
         if (film.getReleaseDate() != null) {
             validateReleaseDate(film.getReleaseDate());
             existingFilm.setReleaseDate(film.getReleaseDate());
         }
 
-        // Для int используем != 0, так как 0 - значение по умолчанию
         if (film.getDuration() != null) {
             if (film.getDuration() <= 0) {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
@@ -81,7 +76,6 @@ public class FilmService {
             existingFilm.setDuration(film.getDuration());
         }
 
-        // Проверяем MPA при обновлении
         if (film.getMpa() != null) {
             try {
                 genreMpaStorage.getMpaRatingById(film.getMpa().getId());
@@ -91,7 +85,6 @@ public class FilmService {
             existingFilm.setMpa(film.getMpa());
         }
 
-        // Проверяем жанры при обновлении
         if (film.getGenres() != null) {
             for (Genre genre : film.getGenres()) {
                 try {
@@ -117,27 +110,26 @@ public class FilmService {
 
     public void addLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId); // Проверяем существование пользователя
+        userService.findById(userId);
 
         if (film.getLikes() == null) {
             film.setLikes(new HashSet<>());
         }
         film.getLikes().add(userId);
-        filmStorage.update(film); // Сохраняем изменения
+        filmStorage.update(film);
     }
 
     public void removeLike(int filmId, int userId) {
         Film film = findById(filmId);
-        userService.findById(userId); // Проверяем существование пользователя
+        userService.findById(userId);
 
         if (film.getLikes() != null) {
             film.getLikes().remove(userId);
-            filmStorage.update(film); // Сохраняем изменения
+            filmStorage.update(film);
         }
     }
 
     public List<Film> getPopularFilms(int count) {
-        // Используем метод хранилища, который уже должен быть оптимизирован
         return filmStorage.getPopularFilms(count);
     }
 
@@ -146,20 +138,17 @@ public class FilmService {
             throw new ValidationException("Название не может быть пустым");
         }
 
-        // Изменено: проверяем только если description != null
         if (film.getDescription() != null && film.getDescription().length() > 200) {
             throw new ValidationException("Максимальная длина описания — 200 символов");
         }
 
-        // Изменено: проверяем releaseDate != null (как в тестах)
         if (film.getReleaseDate() == null) {
             throw new ValidationException("Дата релиза обязательна");
         }
 
         validateReleaseDate(film.getReleaseDate());
 
-        // Изменено: продолжительность > 0 (не >= 1)
-        if (film.getDuration() <= 0) {
+        if (film.getDuration() == null || film.getDuration() <= 0) {
             throw new ValidationException("Продолжительность должна быть положительным числом");
         }
     }

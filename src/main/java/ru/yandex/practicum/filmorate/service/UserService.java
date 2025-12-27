@@ -75,7 +75,6 @@ public class UserService {
             throw new ValidationException("Пользователь не может добавить себя в друзья");
         }
 
-        // Делегируем логику добавления друзей хранилищу
         userStorage.addFriend(userId, friendId);
     }
 
@@ -83,13 +82,11 @@ public class UserService {
         User user = findById(userId);
         User friend = findById(friendId);
 
-        // Делегируем логику удаления друзей хранилищу
         userStorage.removeFriend(userId, friendId);
     }
 
     public List<User> getFriends(int userId) {
         User user = findById(userId);
-        // Используем метод хранилища для получения списка друзей
         return userStorage.getFriends(userId);
     }
 
@@ -97,7 +94,6 @@ public class UserService {
         User user = findById(userId);
         User otherUser = findById(otherId);
 
-        // Используем метод хранилища для получения общих друзей
         return userStorage.getCommonFriends(userId, otherId);
     }
 

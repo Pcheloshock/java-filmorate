@@ -31,7 +31,10 @@ public class FilmController {
     }
 
     @GetMapping
-    public List<Film> getAllFilms() {
+    public List<Film> getAllFilms(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        // Пока возвращаем все фильмы, пагинацию добавим позже
         return filmService.findAll();
     }
 
@@ -56,5 +59,15 @@ public class FilmController {
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
         return filmService.getPopularFilms(count);
+    }
+
+    @GetMapping("/search")
+    public List<Film> searchFilms(
+            @RequestParam String query,
+            @RequestParam(required = false) List<Integer> genres,
+            @RequestParam(required = false) Integer year) {
+        log.info("Поиск фильмов: query={}, genres={}, year={}", query, genres, year);
+        // Пока возвращаем пустой список, реализуем позже
+        return List.of();
     }
 }
