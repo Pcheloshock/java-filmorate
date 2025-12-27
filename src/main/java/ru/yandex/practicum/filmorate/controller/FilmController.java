@@ -7,7 +7,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
-import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -19,7 +18,7 @@ public class FilmController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Film createFilm(@Valid @RequestBody Film film) {
+    public Film createFilm(@RequestBody Film film) {
         log.info("Создание фильма: {}", film);
         return filmService.create(film);
     }
@@ -30,7 +29,6 @@ public class FilmController {
         return filmService.update(film);
     }
 
-    // остальные методы без изменений
     @GetMapping
     public List<Film> getAllFilms() {
         return filmService.findAll();

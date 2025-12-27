@@ -4,9 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
-import ru.yandex.practicum.filmorate.model.FriendshipStatus;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,7 +27,6 @@ public class UserService {
         User existingUser = userStorage.findById(user.getId())
                 .orElseThrow(() -> new NotFoundException("Пользователь с ID " + user.getId() + " не найден"));
 
-        // Частичное обновление
         if (user.getEmail() != null) {
             if (user.getEmail().isBlank() || !user.getEmail().contains("@")) {
                 throw new ValidationException("Email не может быть пустым и должен содержать @");
@@ -40,24 +39,6 @@ public class UserService {
                 throw new ValidationException("Логин не может быть пустым и содержать пробелы");
             }
             existingUser.setLogin(user.getLogin());
-        }
-
-        if (user.getName() != null) {
-            if (user.getName().isBlank()) {
-                existingUser.setName(user.getLogin());
-            } else {
-                existingUser.setName(user.getName());
-            }
-        }
-
-        if (user.getBirthday() != null) {
-            if (user.getBirthday().isAfter(java.time.LocalDate.now())) {
-                throw new ValidationException("Дата рождения не может быть в будущем");
-            }
-            existingUser.setBirthday(user.getBirthday());
-        }
-
-        return existingUser;
         }
 
         if (user.getName() != null) {
@@ -92,41 +73,26 @@ public class UserService {
         User friend = findById(friendId);
 
         if (user.getFriends() == null) {
-            user.setFriends(new HashMap<>());
+            user.setFriends(new HashSet<>());
         }
-        if (friend.getFriends() == null) {
-            friend.setFriends(new HashMap<>());
+        if (userId == friendId) {
+            throw new ValidationException("Пользователь не может добавить себя в друзья");
         }
-
         user.getFriends().add(friendId);
-        friend.getFriends().add(userId);
-        // Добавляем дружбу со статусом "неподтвержденная"
-        user.getFriends().put(friendId, FriendshipStatus.UNCONFIRMED);
-
-        // Проверяем, есть ли обратная связь
-        if (friend.getFriends().containsKey(userId)) {
-            // Если есть, то меняем статус на "подтвержденная" у обоих
-            user.getFriends().put(friendId, FriendshipStatus.CONFIRMED);
-            friend.getFriends().put(userId, FriendshipStatus.CONFIRMED);
-        }
-
         userStorage.update(user);
-        userStorage.update(friend);
     }
 
     public void removeFriend(int userId, int friendId) {
         User user = findById(userId);
-        User friend = findById(friendId);
+        User friend = findById(friendId); // Проверяем существование друга
 
         if (user.getFriends() != null) {
-            user.getFriends().remove(friendId);
-            userStorage.update(user);
-        }
-
-        if (friend.getFriends() != null && friend.getFriends().containsKey(userId)) {
-            // Если удаляем подтвержденную дружбу, меняем статус у второго пользователя
-            friend.getFriends().put(userId, FriendshipStatus.UNCONFIRMED);
-            userStorage.update(friend);
+            // Если друг есть в списке - удаляем
+            if (user.getFriends().contains(friendId)) {
+                user.getFriends().remove(friendId);
+                userStorage.update(user);
+            }
+            // Если друга нет в списке - тоже OK (идемпотентность)
         }
     }
 
@@ -135,7 +101,7 @@ public class UserService {
         if (user.getFriends() == null || user.getFriends().isEmpty()) {
             return new ArrayList<>();
         }
-        return user.getFriends().keySet().stream()
+        return user.getFriends().stream()
                 .map(this::findById)
                 .collect(Collectors.toList());
     }
@@ -144,8 +110,8 @@ public class UserService {
         User user = findById(userId);
         User otherUser = findById(otherId);
 
-        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends().keySet() : new HashSet<>();
-        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends().keySet() : new HashSet<>();
+        Set<Integer> userFriends = user.getFriends() != null ? user.getFriends() : new HashSet<>();
+        Set<Integer> otherFriends = otherUser.getFriends() != null ? otherUser.getFriends() : new HashSet<>();
 
         return userFriends.stream()
                 .filter(otherFriends::contains)
