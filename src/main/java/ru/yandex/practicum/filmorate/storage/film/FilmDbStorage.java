@@ -253,31 +253,46 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Получение {} популярных фильмов", count);
 
-        // Используем корректный запрос для H2
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "COALESCE(l.likes_count, 0) as likes_count " +
-                "FROM films f " +
-                "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
-                "LEFT JOIN ( " +
-                "    SELECT film_id, COUNT(*) as likes_count " +
-                "    FROM film_likes " +
-                "    GROUP BY film_id " +
-                ") l ON f.id = l.film_id " +
-                "ORDER BY COALESCE(l.likes_count, 0) DESC, f.id DESC " +
-                "LIMIT ?";
+        // Сначала проверяем, есть ли вообще фильмы в базе
+        String checkSql = "SELECT COUNT(*) FROM films";
+        Integer filmCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
+        log.info("Всего фильмов в базе: {}", filmCount);
 
-        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
-        loadAllGenres(films);
-        loadAllLikes(films);
-
-        // Отладочный вывод
-        log.info("Найдено {} популярных фильмов", films.size());
-        for (Film film : films) {
-            log.info("Фильм {} - '{}' - лайков: {}", film.getId(), film.getName(),
-                    (film.getLikes() != null ? film.getLikes().size() : 0));
+        if (filmCount == null || filmCount == 0) {
+            log.warn("В базе нет фильмов!");
+            return new ArrayList<>();
         }
 
-        return films;
+        // Используем более простой запрос, который гарантированно работает
+        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
+                "COUNT(fl.user_id) as likes_count " +
+                "FROM films f " +
+                "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
+                "LEFT JOIN film_likes fl ON f.id = fl.film_id " +
+                "GROUP BY f.id, m.id, m.name, m.description " +
+                "ORDER BY COUNT(fl.user_id) DESC, f.id " +
+                "LIMIT ?";
+
+        try {
+            List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), count);
+            loadAllGenres(films);
+            loadAllLikes(films);
+
+            log.info("Найдено {} популярных фильмов", films.size());
+            for (Film film : films) {
+                log.info("Фильм {} - '{}' - лайков: {}", film.getId(), film.getName(),
+                        (film.getLikes() != null ? film.getLikes().size() : 0));
+            }
+
+            return films;
+        } catch (Exception e) {
+            log.error("Ошибка при получении популярных фильмов: {}", e.getMessage(), e);
+            // В случае ошибки возвращаем просто все фильмы
+            return findAll().stream()
+                    .sorted((f1, f2) -> Integer.compare(f2.getRate(), f1.getRate()))
+                    .limit(count)
+                    .collect(Collectors.toList());
+        }
     }
 
     private void saveGenres(Film film) {
@@ -354,18 +369,20 @@ public class FilmDbStorage implements FilmStorage {
 
             // Устанавливаем MPA рейтинг
             int mpaId = rs.getInt("mpa_rating_id");
-            if (mpaId != 0) {
+            if (!rs.wasNull()) {  // Проверяем, что значение не NULL
                 MpaRating mpa = new MpaRating();
                 mpa.setId(mpaId);
 
                 String mpaName = rs.getString("mpa_name");
-                if (mpaName == null) {
+                String mpaDescription = rs.getString("mpa_description");
+
+                // Если имя MPA не получено из JOIN, получаем его по ID
+                if (mpaName == null || mpaName.trim().isEmpty()) {
                     mpaName = getMpaNameById(mpaId);
                 }
                 mpa.setName(mpaName);
 
-                String mpaDescription = rs.getString("mpa_description");
-                if (mpaDescription == null) {
+                if (mpaDescription == null || mpaDescription.trim().isEmpty()) {
                     mpaDescription = getMpaDescriptionById(mpaId);
                 }
                 mpa.setDescription(mpaDescription);
@@ -383,7 +400,7 @@ public class FilmDbStorage implements FilmStorage {
                 case 3 -> "PG-13";
                 case 4 -> "R";
                 case 5 -> "NC-17";
-                default -> "";
+                default -> "UNKNOWN";
             };
         }
 
@@ -394,7 +411,7 @@ public class FilmDbStorage implements FilmStorage {
                 case 3 -> "Детям до 13 лет просмотр не желателен";
                 case 4 -> "Лицам до 17 лет обязательно присутствие взрослого";
                 case 5 -> "Лицам до 18 лет просмотр запрещен";
-                default -> "";
+                default -> "Неизвестный рейтинг";
             };
         }
     }
