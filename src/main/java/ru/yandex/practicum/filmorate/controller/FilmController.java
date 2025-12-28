@@ -59,18 +59,16 @@ public class FilmController {
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
 
-        // Для диагностики получаем ВСЕ фильмы
-        List<Film> allFilms = filmService.findAll();
-        log.info("Все фильмы в базе ({}):", allFilms.size());
-        for (Film film : allFilms) {
-            log.info("  Фильм ID={}, название='{}', лайков={}, рейтинг={}",
-                    film.getId(), film.getName(),
-                    film.getLikes() != null ? film.getLikes().size() : 0,
-                    film.getRate() != null ? film.getRate() : 0);
-        }
-
         List<Film> popularFilms = filmService.getPopularFilms(count);
         log.info("Возвращено {} популярных фильмов", popularFilms.size());
+
+        // Выводим информацию о лайках для диагностики
+        for (int i = 0; i < popularFilms.size(); i++) {
+            Film film = popularFilms.get(i);
+            log.info("Фильм {}: ID={}, название='{}', лайков={}",
+                    i + 1, film.getId(), film.getName(),
+                    film.getLikes() != null ? film.getLikes().size() : 0);
+        }
 
         return popularFilms;
     }

@@ -55,3 +55,6 @@ CREATE TABLE IF NOT EXISTS friendships (
     PRIMARY KEY (user_id, friend_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_film_likes_film_id ON film_likes(film_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_user_id ON friendships(user_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON friendships(friend_id);
