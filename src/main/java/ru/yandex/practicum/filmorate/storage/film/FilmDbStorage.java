@@ -74,22 +74,37 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public List<Film> findAll() {
-        log.info("Получение всех фильмов");
+        log.info("Storage: Получение всех фильмов");
 
         String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description " +
                 "FROM films f LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
                 "ORDER BY f.id";
 
+        log.info("Storage: SQL запрос для findAll: {}", sql);
+
         List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper());
+
+        if (films.isEmpty()) {
+            log.warn("Storage: В базе данных НЕТ фильмов!");
+        } else {
+            log.info("Storage: Найдено {} фильмов", films.size());
+            for (Film film : films) {
+                log.info("Storage:   Фильм: ID={}, название='{}', MPA={}",
+                        film.getId(), film.getName(),
+                        film.getMpa() != null ? film.getMpa().getId() : "нет");
+            }
+        }
+
         loadAllGenres(films);
         loadAllLikes(films);
 
-        log.info("Найдено {} фильмов", films.size());
+        log.info("Storage: Загружены жанры и лайки для {} фильмов", films.size());
         return films;
     }
 
     private void loadAllLikes(List<Film> films) {
         if (films.isEmpty()) {
+            log.info("Storage: Нет фильмов для загрузки лайков");
             return;
         }
 
@@ -105,6 +120,8 @@ public class FilmDbStorage implements FilmStorage {
                 "SELECT film_id, user_id FROM film_likes WHERE film_id IN (%s)",
                 placeholders
         );
+
+        log.debug("Storage: Загрузка лайков для фильмов: {}", filmIds);
 
         Map<Integer, Set<Integer>> likesByFilmId = new HashMap<>();
         jdbcTemplate.query(sql, filmIds.toArray(), rs -> {
@@ -129,6 +146,7 @@ public class FilmDbStorage implements FilmStorage {
 
     private void loadAllGenres(List<Film> films) {
         if (films.isEmpty()) {
+            log.info("Storage: Нет фильмов для загрузки жанров");
             return;
         }
 
@@ -148,6 +166,8 @@ public class FilmDbStorage implements FilmStorage {
                         "ORDER BY fg.film_id, g.id",
                 placeholders
         );
+
+        log.debug("Storage: Загрузка жанров для фильмов: {}", filmIds);
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, filmIds.toArray());
 
@@ -242,84 +262,39 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Storage: Получение {} популярных фильмов", count);
 
-        // Получаем общее количество фильмов
-        int totalFilms = getTotalFilmsCount();
-        log.info("Storage: Всего фильмов в базе: {}", totalFilms);
+        // Сначала получаем все фильмы
+        List<Film> allFilms = findAll();
+        log.info("Storage: Всего фильмов получено: {}", allFilms.size());
 
-        if (totalFilms == 0) {
-            return List.of();
-        }
+        // Сортируем по количеству лайков (по убыванию)
+        allFilms.sort((f1, f2) -> {
+            int likes1 = f1.getLikes() != null ? f1.getLikes().size() : 0;
+            int likes2 = f2.getLikes() != null ? f2.getLikes().size() : 0;
+            int comparison = Integer.compare(likes2, likes1);
 
-        // Используем фактическое количество (не больше общего числа фильмов)
-        int actualCount = Math.min(count, totalFilms);
-        log.info("Storage: Будет возвращено {} фильмов (запрошено {}, всего в базе {})",
-                actualCount, count, totalFilms);
-
-        // Получаем ID всех фильмов в базе для диагностики
-        String allFilmIdsSql = "SELECT id, name, mpa_rating_id FROM films ORDER BY id";
-        List<Map<String, Object>> allFilms = jdbcTemplate.queryForList(allFilmIdsSql);
-        log.info("Storage: Все фильмы в базе: {}", allFilms.stream()
-                .map(f -> String.format("{id=%s, name='%s', mpa_id=%s}",
-                        f.get("id"), f.get("name"), f.get("mpa_rating_id")))
-                .collect(Collectors.toList()));
-
-        // Упрощенный запрос без подзапроса - используем COUNT напрямую
-        String sql = "SELECT f.*, " +
-                "m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "(SELECT COUNT(*) FROM film_likes fl WHERE fl.film_id = f.id) as likes_count " +
-                "FROM films f " +
-                "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
-                "ORDER BY likes_count DESC, f.id DESC " +
-                "LIMIT ?";
-
-        log.info("Storage: Выполняем SQL запрос с actualCount={}", actualCount);
-
-        List<Film> films = jdbcTemplate.query(sql, (rs, rowNum) -> {
-            Film film = new Film();
-            film.setId(rs.getInt("id"));
-            film.setName(rs.getString("name"));
-            film.setDescription(rs.getString("description"));
-
-            java.sql.Date releaseDate = rs.getDate("release_date");
-            if (releaseDate != null) {
-                film.setReleaseDate(releaseDate.toLocalDate());
+            // При равном количестве лайков сортируем по ID (по убыванию)
+            if (comparison == 0) {
+                return Integer.compare(f2.getId(), f1.getId());
             }
+            return comparison;
+        });
 
-            film.setDuration(rs.getInt("duration"));
-            film.setRate(rs.getInt("likes_count"));
+        // Возвращаем первые count фильмов
+        List<Film> result = allFilms.stream()
+                .limit(count)
+                .collect(Collectors.toList());
 
-            int mpaId = rs.getInt("mpa_rating_id");
-            if (!rs.wasNull() && mpaId > 0) {
-                MpaRating mpa = new MpaRating();
-                mpa.setId(mpaId);
-                mpa.setName(rs.getString("mpa_name"));
-                mpa.setDescription(rs.getString("mpa_description"));
-                film.setMpa(mpa);
-            }
+        log.info("Storage: Возвращаем {} популярных фильмов из {}", result.size(), allFilms.size());
 
-            log.debug("Storage: Загружен фильм ID={}, name='{}', likes_count={}",
-                    film.getId(), film.getName(), film.getRate());
-
-            return film;
-        }, actualCount);
-
-        // Загружаем жанры и лайки для возвращаемых фильмов
-        if (!films.isEmpty()) {
-            loadAllGenres(films);
-            loadAllLikes(films);
+        // Детальная информация о возвращаемых фильмах
+        for (int i = 0; i < result.size(); i++) {
+            Film film = result.get(i);
+            log.info("Storage: Популярный фильм {}: ID={}, название='{}', лайков={}",
+                    i + 1, film.getId(), film.getName(),
+                    film.getLikes() != null ? film.getLikes().size() : 0);
         }
 
-        log.info("Storage: Найдено {} популярных фильмов", films.size());
-
-        // Дополнительная диагностика
-        if (films.size() < actualCount && films.size() < totalFilms) {
-            log.warn("Storage: ВНИМАНИЕ: Возвращено меньше фильмов ({}) чем запрошено ({}) или есть в базе ({})",
-                    films.size(), actualCount, totalFilms);
-            log.warn("Storage: Возвращенные фильмы: {}",
-                    films.stream().map(f -> f.getId() + ":" + f.getName()).collect(Collectors.toList()));
-        }
-
-        return films;
+        return result;
     }
 
     private void saveGenres(Film film) {

@@ -60,30 +60,20 @@ public class FilmController {
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
 
-        // Для диагностики получаем общее количество фильмов
-        int totalFilms = filmService.getTotalFilmsCount();
-        log.info("Всего фильмов в базе: {}", totalFilms);
-
-        List<Film> films = filmService.getPopularFilms(count);
-        log.info("Возвращено {} фильмов", films.size());
-
-        if (films.size() < count && films.size() < totalFilms) {
-            log.warn("ВНИМАНИЕ: Возвращено меньше фильмов ({}) чем запрошено ({}) или есть в базе ({})",
-                    films.size(), count, totalFilms);
+        // Для диагностики получаем ВСЕ фильмы
+        List<Film> allFilms = filmService.findAll();
+        log.info("Все фильмы в базе ({}):", allFilms.size());
+        for (Film film : allFilms) {
+            log.info("  Фильм ID={}, название='{}', лайков={}, рейтинг={}",
+                    film.getId(), film.getName(),
+                    film.getLikes() != null ? film.getLikes().size() : 0,
+                    film.getRate() != null ? film.getRate() : 0);
         }
 
-        // Детальная информация о каждом фильме
-        for (int i = 0; i < films.size(); i++) {
-            Film film = films.get(i);
-            log.info("Фильм {}: id={}, name='{}', rate={}, likes={}",
-                    i + 1, film.getId(), film.getName(),
-                    film.getRate(), film.getLikes() != null ? film.getLikes().size() : 0);
-        }
+        List<Film> popularFilms = filmService.getPopularFilms(count);
+        log.info("Возвращено {} популярных фильмов", popularFilms.size());
 
-        log.info("Фильмы: {}", films.stream()
-                .map(Film::getName)
-                .collect(Collectors.toList()));
-        return films;
+        return popularFilms;
     }
 
     @GetMapping("/search")
