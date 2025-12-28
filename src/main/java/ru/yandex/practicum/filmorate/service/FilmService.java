@@ -12,7 +12,6 @@ import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
 import ru.yandex.practicum.filmorate.storage.film.GenreMpaStorage;
 
 import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -117,28 +116,41 @@ public class FilmService {
     }
 
     public void addLike(int filmId, int userId) {
-        Film film = findById(filmId);
-        userService.findById(userId);
+        log.info("Service: Добавление лайка filmId={}, userId={}", filmId, userId);
 
-        if (film.getLikes() == null) {
-            film.setLikes(new HashSet<>());
-        }
-        film.getLikes().add(userId);
-        filmStorage.update(film);
+        // Проверяем существование фильма
+        findById(filmId); // Бросает NotFoundException если не найден
+
+        // Проверяем существование пользователя
+        userService.findById(userId); // Бросает NotFoundException если не найден
+
+        // Используем оптимизированный метод из FilmStorage
+        filmStorage.addLike(filmId, userId);
+        log.info("Service: Лайк добавлен успешно");
     }
 
     public void removeLike(int filmId, int userId) {
-        Film film = findById(filmId);
-        userService.findById(userId);
+        log.info("Service: Удаление лайка filmId={}, userId={}", filmId, userId);
 
-        if (film.getLikes() != null) {
-            film.getLikes().remove(userId);
-            filmStorage.update(film);
-        }
+        // Проверяем существование фильма
+        findById(filmId); // Бросает NotFoundException если не найден
+
+        // Проверяем существование пользователя
+        userService.findById(userId); // Бросает NotFoundException если не найден
+
+        // Используем оптимизированный метод из FilmStorage
+        filmStorage.removeLike(filmId, userId);
+        log.info("Service: Лайк удален успешно");
     }
 
     public List<Film> getPopularFilms(int count) {
         log.info("Service: Запрос {} популярных фильмов", count);
+
+        // Проверяем валидность параметра count
+        if (count <= 0) {
+            throw new ValidationException("Количество фильмов должно быть положительным числом");
+        }
+
         List<Film> films = filmStorage.getPopularFilms(count);
         log.info("Service: Получено {} фильмов из хранилища", films.size());
         return films;

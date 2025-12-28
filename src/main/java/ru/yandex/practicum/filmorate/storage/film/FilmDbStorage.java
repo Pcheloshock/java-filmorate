@@ -152,6 +152,19 @@ public class FilmDbStorage implements FilmStorage {
     public void addLike(int filmId, int userId) {
         log.info("Добавление лайка: filmId={}, userId={}", filmId, userId);
 
+        // Проверяем существование фильма
+        if (!existsById(filmId)) {
+            throw new NotFoundException("Фильм с ID " + filmId + " не найден");
+        }
+
+        // Проверяем существование пользователя
+        // (нужен доступ к UserStorage или таблице users)
+        String checkUserSql = "SELECT COUNT(*) FROM users WHERE id = ?";
+        Integer userCount = jdbcTemplate.queryForObject(checkUserSql, Integer.class, userId);
+        if (userCount == null || userCount == 0) {
+            throw new NotFoundException("Пользователь с ID " + userId + " не найден");
+        }
+
         String checkSql = "SELECT COUNT(*) FROM film_likes WHERE film_id = ? AND user_id = ?";
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, filmId, userId);
 
@@ -162,6 +175,7 @@ public class FilmDbStorage implements FilmStorage {
                 log.info("Лайк добавлен: filmId={}, userId={}", filmId, userId);
             } catch (DataIntegrityViolationException e) {
                 log.error("Ошибка при добавлении лайка: {}", e.getMessage());
+                throw new DataIntegrityViolationException("Не удалось добавить лайк");
             }
         } else {
             log.info("Лайк уже существует: filmId={}, userId={}", filmId, userId);
@@ -184,13 +198,15 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Storage: Получение {} популярных фильмов", count);
 
-        // Используем SQL с JOIN для правильного подсчета лайков и сортировки
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "COUNT(fl.user_id) as likes_count " +
+        // Упрощенный запрос
+        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, " +
+                "m.description as mpa_description, " +
+                "COALESCE(fl.likes_count, 0) as likes_count " +
                 "FROM films f " +
                 "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
-                "LEFT JOIN film_likes fl ON f.id = fl.film_id " +
-                "GROUP BY f.id, m.id, m.name, m.description " +
+                "LEFT JOIN (SELECT film_id, COUNT(*) as likes_count " +
+                "           FROM film_likes GROUP BY film_id) fl " +
+                "ON f.id = fl.film_id " +
                 "ORDER BY likes_count DESC, f.id DESC " +
                 "LIMIT ?";
 
@@ -201,14 +217,14 @@ public class FilmDbStorage implements FilmStorage {
 
         if (!popularFilms.isEmpty()) {
             loadAllGenres(popularFilms);
-            loadAllLikes(popularFilms);
+            loadAllLikes(popularFilms); // Исправленный без setRate
 
             // Выводим информацию для отладки
             for (int i = 0; i < popularFilms.size(); i++) {
                 Film film = popularFilms.get(i);
                 log.info("Storage: Популярный фильм {}: ID={}, название='{}', лайков={}",
                         i + 1, film.getId(), film.getName(),
-                        film.getRate() != null ? film.getRate() : 0);
+                        film.getRate());
             }
         }
 
@@ -246,8 +262,6 @@ public class FilmDbStorage implements FilmStorage {
         for (Film film : films) {
             Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
             film.setLikes(likes);
-            // Обновляем rate на основе количества лайков
-            film.setRate(likes.size());
         }
     }
 
@@ -361,15 +375,10 @@ public class FilmDbStorage implements FilmStorage {
 
             film.setDuration(rs.getInt("duration"));
 
-            // Получаем количество лайков
-            int likesCount = 0;
-            try {
-                likesCount = rs.getInt("likes_count");
-                if (rs.wasNull()) {
-                    likesCount = 0;
-                }
-            } catch (SQLException e) {
-                // Колонка может отсутствовать в некоторых запросах
+            // Прямое получение likes_count без try-catch
+            int likesCount = rs.getInt("likes_count");
+            // Проверяем wasNull после getInt
+            if (rs.wasNull()) {
                 likesCount = 0;
             }
             film.setRate(likesCount);
