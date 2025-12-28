@@ -123,6 +123,13 @@ public class FilmDbStorage implements FilmStorage {
         }
     }
 
+    @Override
+    public int getTotalFilmsCount() {
+        String sql = "SELECT COUNT(*) FROM films";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        return count != null ? count : 0;
+    }
+
     private void loadAllGenres(List<Film> films) {
         if (films.isEmpty()) {
             return;
@@ -238,12 +245,11 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Storage: Получение {} популярных фильмов", count);
 
-        // Получаем общее количество фильмов
-        String allFilmsSql = "SELECT COUNT(*) FROM films";
-        Integer totalFilms = jdbcTemplate.queryForObject(allFilmsSql, Integer.class);
+        // Используем метод getTotalFilmsCount вместо прямого запроса
+        int totalFilms = getTotalFilmsCount();
         log.info("Storage: Всего фильмов в базе: {}", totalFilms);
 
-        if (totalFilms == null || totalFilms == 0) {
+        if (totalFilms == 0) {
             log.info("Storage: В базе нет фильмов");
             return List.of();
         }
@@ -256,54 +262,43 @@ public class FilmDbStorage implements FilmStorage {
                         f.get("id"), f.get("name"), f.get("mpa_rating_id")))
                 .collect(Collectors.toList()));
 
-        // Получаем количество лайков для каждого фильма
-        String likesSql = "SELECT film_id, COUNT(user_id) as like_count " +
-                "FROM film_likes GROUP BY film_id";
-        List<Map<String, Object>> likes = jdbcTemplate.queryForList(likesSql);
-        Map<Integer, Integer> likesMap = new HashMap<>();
-        for (Map<String, Object> like : likes) {
-            Integer filmId = (Integer) like.get("film_id");
-            Long likeCount = (Long) like.get("like_count");
-            likesMap.put(filmId, likeCount.intValue());
-        }
-        log.info("Storage: Лайки по фильмам: {}", likesMap);
-
-        // Если запрашиваем больше, чем есть, возвращаем все
         int actualCount = Math.min(count, totalFilms);
         log.info("Storage: Будет возвращено {} фильмов (запрошено {}, всего в базе {})",
                 actualCount, count, totalFilms);
 
-        // Простой и надежный запрос
-        String sql = "SELECT f.*, m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
-                "COUNT(fl.user_id) as likes_count " +
+        // Упрощенный запрос без подзапроса
+        String sql = "SELECT f.*, " +
+                "m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
+                "(SELECT COUNT(*) FROM film_likes fl WHERE fl.film_id = f.id) as likes_count " +
                 "FROM films f " +
                 "LEFT JOIN mpa_ratings m ON f.mpa_rating_id = m.id " +
-                "LEFT JOIN film_likes fl ON f.id = fl.film_id " +
-                "GROUP BY f.id, m.id, m.name, m.description " +
-                "ORDER BY COUNT(fl.user_id) DESC, f.id " +
+                "ORDER BY likes_count DESC, f.id DESC " +
                 "LIMIT ?";
 
         log.info("Storage: Выполняем SQL запрос: {}", sql);
-        List<Film> films = jdbcTemplate.query(sql, new FilmRowMapper(), actualCount);
-        log.info("Storage: После запроса получено {} фильмов", films.size());
 
-        // Проверяем, какие фильмы были получены
-        List<Integer> retrievedIds = films.stream()
-                .map(Film::getId)
-                .collect(Collectors.toList());
-        log.info("Storage: Полученные ID фильмов: {}", retrievedIds);
+        List<Film> films = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Film film = new Film();
+            film.setId(rs.getInt("id"));
+            film.setName(rs.getString("name"));
+            film.setDescription(rs.getString("description"));
+            film.setReleaseDate(rs.getDate("release_date").toLocalDate());
+            film.setDuration(rs.getInt("duration"));
+            film.setRate(rs.getInt("likes_count"));
 
-        // Проверяем, какие фильмы не попали в результат
-        List<Integer> allIds = allFilms.stream()
-                .map(f -> (Integer) f.get("id"))
-                .collect(Collectors.toList());
-        List<Integer> missingIds = allIds.stream()
-                .filter(id -> !retrievedIds.contains(id))
-                .collect(Collectors.toList());
-        log.info("Storage: Отсутствующие ID фильмов: {}", missingIds);
+            int mpaId = rs.getInt("mpa_rating_id");
+            if (!rs.wasNull()) {
+                MpaRating mpa = new MpaRating();
+                mpa.setId(mpaId);
+                mpa.setName(rs.getString("mpa_name"));
+                mpa.setDescription(rs.getString("mpa_description"));
+                film.setMpa(mpa);
+            }
+
+            return film;
+        }, actualCount);
 
         loadAllGenres(films);
-        // Загружаем лайки (но не перезаписываем rate)
         loadAllLikes(films);
 
         log.info("Storage: Найдено {} популярных фильмов", films.size());

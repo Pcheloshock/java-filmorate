@@ -59,8 +59,18 @@ public class FilmController {
     @GetMapping("/popular")
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
+
+        // Для диагностики получаем общее количество фильмов
+        int totalFilms = filmService.getTotalFilmsCount();
+        log.info("Всего фильмов в базе: {}", totalFilms);
+
         List<Film> films = filmService.getPopularFilms(count);
         log.info("Возвращено {} фильмов", films.size());
+
+        if (films.size() < count && films.size() < totalFilms) {
+            log.warn("ВНИМАНИЕ: Возвращено меньше фильмов ({}) чем запрошено ({}) или есть в базе ({})",
+                    films.size(), count, totalFilms);
+        }
 
         // Детальная информация о каждом фильме
         for (int i = 0; i < films.size(); i++) {

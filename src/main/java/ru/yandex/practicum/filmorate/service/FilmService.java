@@ -25,6 +25,12 @@ public class FilmService {
     private final GenreMpaStorage genreMpaStorage;
 
     public Film create(Film film) {
+        log.info("Создание фильма: name='{}', description length={}, releaseDate={}, duration={}",
+                film.getName(),
+                film.getDescription() != null ? film.getDescription().length() : 0,
+                film.getReleaseDate(),
+                film.getDuration());
+
         validateFilmForCreate(film);
 
         if (film.getMpa() != null) {
@@ -156,6 +162,10 @@ public class FilmService {
         if (film.getDuration() == null || film.getDuration() <= 0) {
             throw new ValidationException("Продолжительность должна быть положительным числом");
         }
+    }
+
+    public int getTotalFilmsCount() {
+        return filmStorage.getTotalFilmsCount();
     }
 
     private void validateReleaseDate(LocalDate releaseDate) {

@@ -36,6 +36,11 @@ public class InMemoryFilmStorage implements FilmStorage {
     }
 
     @Override
+    public int getTotalFilmsCount() {
+        return films.size();
+    }
+
+    @Override
     public void delete(int id) {
         films.remove(id);
     }
