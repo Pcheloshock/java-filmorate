@@ -106,20 +106,17 @@ public class FilmDbStorage implements FilmStorage {
                 placeholders
         );
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, filmIds.toArray());
-
         Map<Integer, Set<Integer>> likesByFilmId = new HashMap<>();
-        for (Map<String, Object> row : rows) {
-            Integer filmId = (Integer) row.get("film_id");
-            Integer userId = (Integer) row.get("user_id");
-
+        jdbcTemplate.query(sql, filmIds.toArray(), rs -> {
+            Integer filmId = rs.getInt("film_id");
+            Integer userId = rs.getInt("user_id");
             likesByFilmId.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
-        }
+        });
 
         for (Film film : films) {
             Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
             film.setLikes(likes);
-            // Не устанавливаем rate здесь, он уже установлен из likes_count в FilmRowMapper
+            // rate уже установлен из запроса, не перезаписываем
         }
     }
 
@@ -245,28 +242,28 @@ public class FilmDbStorage implements FilmStorage {
     public List<Film> getPopularFilms(int count) {
         log.info("Storage: Получение {} популярных фильмов", count);
 
-        // Используем метод getTotalFilmsCount вместо прямого запроса
+        // Получаем общее количество фильмов
         int totalFilms = getTotalFilmsCount();
         log.info("Storage: Всего фильмов в базе: {}", totalFilms);
 
         if (totalFilms == 0) {
-            log.info("Storage: В базе нет фильмов");
             return List.of();
         }
+
+        // Используем фактическое количество (не больше общего числа фильмов)
+        int actualCount = Math.min(count, totalFilms);
+        log.info("Storage: Будет возвращено {} фильмов (запрошено {}, всего в базе {})",
+                actualCount, count, totalFilms);
 
         // Получаем ID всех фильмов в базе для диагностики
         String allFilmIdsSql = "SELECT id, name, mpa_rating_id FROM films ORDER BY id";
         List<Map<String, Object>> allFilms = jdbcTemplate.queryForList(allFilmIdsSql);
         log.info("Storage: Все фильмы в базе: {}", allFilms.stream()
-                .map(f -> String.format("{id=%s, name=%s, mpa_id=%s}",
+                .map(f -> String.format("{id=%s, name='%s', mpa_id=%s}",
                         f.get("id"), f.get("name"), f.get("mpa_rating_id")))
                 .collect(Collectors.toList()));
 
-        int actualCount = Math.min(count, totalFilms);
-        log.info("Storage: Будет возвращено {} фильмов (запрошено {}, всего в базе {})",
-                actualCount, count, totalFilms);
-
-        // Упрощенный запрос без подзапроса
+        // Упрощенный запрос без подзапроса - используем COUNT напрямую
         String sql = "SELECT f.*, " +
                 "m.id as mpa_id, m.name as mpa_name, m.description as mpa_description, " +
                 "(SELECT COUNT(*) FROM film_likes fl WHERE fl.film_id = f.id) as likes_count " +
@@ -275,19 +272,24 @@ public class FilmDbStorage implements FilmStorage {
                 "ORDER BY likes_count DESC, f.id DESC " +
                 "LIMIT ?";
 
-        log.info("Storage: Выполняем SQL запрос: {}", sql);
+        log.info("Storage: Выполняем SQL запрос с actualCount={}", actualCount);
 
         List<Film> films = jdbcTemplate.query(sql, (rs, rowNum) -> {
             Film film = new Film();
             film.setId(rs.getInt("id"));
             film.setName(rs.getString("name"));
             film.setDescription(rs.getString("description"));
-            film.setReleaseDate(rs.getDate("release_date").toLocalDate());
+
+            java.sql.Date releaseDate = rs.getDate("release_date");
+            if (releaseDate != null) {
+                film.setReleaseDate(releaseDate.toLocalDate());
+            }
+
             film.setDuration(rs.getInt("duration"));
             film.setRate(rs.getInt("likes_count"));
 
             int mpaId = rs.getInt("mpa_rating_id");
-            if (!rs.wasNull()) {
+            if (!rs.wasNull() && mpaId > 0) {
                 MpaRating mpa = new MpaRating();
                 mpa.setId(mpaId);
                 mpa.setName(rs.getString("mpa_name"));
@@ -295,13 +297,28 @@ public class FilmDbStorage implements FilmStorage {
                 film.setMpa(mpa);
             }
 
+            log.debug("Storage: Загружен фильм ID={}, name='{}', likes_count={}",
+                    film.getId(), film.getName(), film.getRate());
+
             return film;
         }, actualCount);
 
-        loadAllGenres(films);
-        loadAllLikes(films);
+        // Загружаем жанры и лайки для возвращаемых фильмов
+        if (!films.isEmpty()) {
+            loadAllGenres(films);
+            loadAllLikes(films);
+        }
 
         log.info("Storage: Найдено {} популярных фильмов", films.size());
+
+        // Дополнительная диагностика
+        if (films.size() < actualCount && films.size() < totalFilms) {
+            log.warn("Storage: ВНИМАНИЕ: Возвращено меньше фильмов ({}) чем запрошено ({}) или есть в базе ({})",
+                    films.size(), actualCount, totalFilms);
+            log.warn("Storage: Возвращенные фильмы: {}",
+                    films.stream().map(f -> f.getId() + ":" + f.getName()).collect(Collectors.toList()));
+        }
+
         return films;
     }
 
@@ -353,7 +370,6 @@ public class FilmDbStorage implements FilmStorage {
                 (rs, rowNum) -> rs.getInt("user_id"),
                 film.getId());
         film.setLikes(new HashSet<>(likes));
-        // Убрать film.setRate(likes.size());
         log.info("Загружено {} лайков для фильма ID {}", likes.size(), film.getId());
     }
 
@@ -364,66 +380,41 @@ public class FilmDbStorage implements FilmStorage {
             film.setId(rs.getInt("id"));
             film.setName(rs.getString("name"));
             film.setDescription(rs.getString("description"));
-            film.setReleaseDate(rs.getDate("release_date").toLocalDate());
+
+            java.sql.Date releaseDate = rs.getDate("release_date");
+            if (releaseDate != null) {
+                film.setReleaseDate(releaseDate.toLocalDate());
+            }
+
             film.setDuration(rs.getInt("duration"));
 
-            // Получаем количество лайков из запроса
+            // Получаем количество лайков
             int likesCount = 0;
             try {
                 likesCount = rs.getInt("likes_count");
-                log.debug("FilmRowMapper: Фильм ID={}, likes_count={}", film.getId(), likesCount);
+                if (rs.wasNull()) {
+                    likesCount = 0;
+                }
             } catch (SQLException e) {
-                log.warn("FilmRowMapper: Колонка likes_count не найдена для фильма ID={}", film.getId());
+                // Колонка может отсутствовать в некоторых запросах
+                likesCount = 0;
             }
             film.setRate(likesCount);
 
             // Устанавливаем MPA рейтинг
             int mpaId = rs.getInt("mpa_rating_id");
-            if (!rs.wasNull()) {  // Важно: проверяем, было ли значение NULL
+            if (!rs.wasNull() && mpaId > 0) {
                 MpaRating mpa = new MpaRating();
                 mpa.setId(mpaId);
-
-                String mpaName = rs.getString("mpa_name");
-                if (mpaName == null || mpaName.trim().isEmpty()) {
-                    mpaName = getMpaNameById(mpaId);
-                }
-                mpa.setName(mpaName);
-
-                String mpaDescription = rs.getString("mpa_description");
-                if (mpaDescription == null || mpaDescription.trim().isEmpty()) {
-                    mpaDescription = getMpaDescriptionById(mpaId);
-                }
-                mpa.setDescription(mpaDescription);
-
+                mpa.setName(rs.getString("mpa_name"));
+                mpa.setDescription(rs.getString("mpa_description"));
                 film.setMpa(mpa);
-                log.debug("FilmRowMapper: Фильм ID={}, MPA ID={}, name={}", film.getId(), mpaId, mpaName);
-            } else {
-                log.debug("FilmRowMapper: Фильм ID={} не имеет MPA рейтинга", film.getId());
             }
 
+            log.debug("FilmRowMapper: Фильм ID={}, name='{}', likes={}",
+                    film.getId(), film.getName(), likesCount);
+
             return film;
-        }
-
-        private String getMpaNameById(int id) {
-            return switch (id) {
-                case 1 -> "G";
-                case 2 -> "PG";
-                case 3 -> "PG-13";
-                case 4 -> "R";
-                case 5 -> "NC-17";
-                default -> "UNKNOWN";
-            };
-        }
-
-        private String getMpaDescriptionById(int id) {
-            return switch (id) {
-                case 1 -> "Нет возрастных ограничений";
-                case 2 -> "Рекомендуется присутствие родителей";
-                case 3 -> "Детям до 13 лет просмотр не желателен";
-                case 4 -> "Лицам до 17 лет обязательно присутствие взрослого";
-                case 5 -> "Лицам до 18 лет просмотр запрещен";
-                default -> "Неизвестный рейтинг";
-            };
         }
     }
 }
