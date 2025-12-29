@@ -97,9 +97,6 @@ public class FilmDbStorage implements FilmStorage {
             }
         }
 
-        loadAllGenres(films);
-        loadAllLikes(films);
-
         log.info("Storage: Загружены жанры и лайки для {} фильмов", films.size());
         return films;
     }
@@ -317,9 +314,14 @@ public class FilmDbStorage implements FilmStorage {
                     ));
 
             String sql = "INSERT INTO film_genres (film_id, genre_id) VALUES (?, ?)";
-            uniqueGenres.forEach(genre -> {
-                jdbcTemplate.update(sql, film.getId(), genre.getId());
-            });
+
+            // Создаем список аргументов для batchUpdate
+            List<Object[]> batchArgs = new ArrayList<>();
+            for (Genre genre : uniqueGenres) {
+                batchArgs.add(new Object[]{film.getId(), genre.getId()});
+            }
+
+            jdbcTemplate.batchUpdate(sql, batchArgs);
 
             log.info("Сохранены жанры для фильма ID {}: {}", film.getId(),
                     uniqueGenres.stream().map(Genre::getName).collect(Collectors.joining(", ")));

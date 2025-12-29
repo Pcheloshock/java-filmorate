@@ -62,31 +62,6 @@ public class FilmController {
         List<Film> popularFilms = filmService.getPopularFilms(count);
         log.info("Возвращено {} популярных фильмов", popularFilms.size());
 
-        // Детальное логирование для диагностики
-        for (int i = 0; i < popularFilms.size(); i++) {
-            Film film = popularFilms.get(i);
-            log.info("Фильм {}: ID={}, название='{}', rate={}, лайков={}",
-                    i + 1, film.getId(), film.getName(),
-                    film.getRate(),
-                    film.getLikes() != null ? film.getLikes().size() : 0);
-
-            // Проверяем, что rate соответствует количеству лайков
-            if (film.getLikes() != null && film.getRate() != film.getLikes().size()) {
-                log.warn("РАСХОЖДЕНИЕ: Film ID={}, rate={}, но likes.size={}",
-                        film.getId(), film.getRate(), film.getLikes().size());
-            }
-        }
-
         return popularFilms;
-    }
-
-    @GetMapping("/search")
-    public List<Film> searchFilms(
-            @RequestParam String query,
-            @RequestParam(required = false) List<Integer> genres,
-            @RequestParam(required = false) Integer year) {
-        log.info("Поиск фильмов: query={}, genres={}, year={}", query, genres, year);
-        // Пока возвращаем пустой список, реализуем позже
-        return List.of();
     }
 }

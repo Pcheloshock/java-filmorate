@@ -16,7 +16,8 @@ public class StorageConfig {
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
     @Primary
-    public FilmStorage filmDbStorage(JdbcTemplate jdbcTemplate) {
+    public FilmStorage filmStorage(JdbcTemplate jdbcTemplate) {
+        // Имя метода может быть любым, но лучше дать осмысленное
         return new FilmDbStorage(jdbcTemplate);
     }
 
@@ -29,7 +30,7 @@ public class StorageConfig {
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
     @Primary
-    public UserStorage userDbStorage(JdbcTemplate jdbcTemplate) {
+    public UserStorage userStorage(JdbcTemplate jdbcTemplate) {
         return new UserDbStorage(jdbcTemplate);
     }
 
@@ -42,7 +43,7 @@ public class StorageConfig {
     @Bean
     @ConditionalOnProperty(name = "filmorate.storage.type", havingValue = "jdbc", matchIfMissing = true)
     @Primary
-    public GenreMpaStorage genreMpaDbStorage(JdbcTemplate jdbcTemplate) {
+    public GenreMpaStorage genreMpaStorage(JdbcTemplate jdbcTemplate) {
         return new GenreMpaDbStorage(jdbcTemplate);
     }
 

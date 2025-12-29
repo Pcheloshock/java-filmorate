@@ -39,17 +39,6 @@ public class FilmService {
                 throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
             }
         }
-
-        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
-            for (Genre genre : film.getGenres()) {
-                try {
-                    genreMpaStorage.getGenreById(genre.getId());
-                } catch (NotFoundException e) {
-                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
-                }
-            }
-        }
-
         return filmStorage.create(film);
     }
 
@@ -174,10 +163,6 @@ public class FilmService {
         if (film.getDuration() == null || film.getDuration() <= 0) {
             throw new ValidationException("Продолжительность должна быть положительным числом");
         }
-    }
-
-    public int getTotalFilmsCount() {
-        return filmStorage.getTotalFilmsCount();
     }
 
     private void validateReleaseDate(LocalDate releaseDate) {
