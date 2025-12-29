@@ -24,14 +24,17 @@ public class GenreMpaDbStorage implements GenreMpaStorage {
     @Override
     public Genre getGenreById(int id) {
         String sql = "SELECT * FROM genres WHERE id = ?";
-        try {
-            return jdbcTemplate.queryForObject(sql,
-                    (rs, rowNum) -> new Genre(rs.getInt("id"), rs.getString("name")),
-                    id
-            );
-        } catch (EmptyResultDataAccessException e) {
+        List<Genre> genres = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Genre genre = new Genre();
+            genre.setId(rs.getInt("id"));
+            genre.setName(rs.getString("name"));
+            return genre;
+        }, id);
+
+        if (genres.isEmpty()) {
             throw new NotFoundException("Жанр с ID " + id + " не найден");
         }
+        return genres.get(0);
     }
 
     @Override

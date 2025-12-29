@@ -24,21 +24,41 @@ public class FilmService {
     private final GenreMpaStorage genreMpaStorage;
 
     public Film create(Film film) {
-        log.info("Создание фильма: name='{}', description length={}, releaseDate={}, duration={}",
+        log.info("Создание фильма: name='{}', description length={}, releaseDate={}, duration={}, genres={}",
                 film.getName(),
                 film.getDescription() != null ? film.getDescription().length() : 0,
                 film.getReleaseDate(),
-                film.getDuration());
+                film.getDuration(),
+                film.getGenres() != null ? film.getGenres() : "null");
 
-        validateFilmForCreate(film);
+        // Сначала проверяем жанры и MPA (чтобы получить 404 при невалидных ID)
+        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
+            log.info("Проверка жанров: {}", film.getGenres());
+            for (Genre genre : film.getGenres()) {
+                try {
+                    genreMpaStorage.getGenreById(genre.getId());
+                    log.info("Жанр {} найден", genre.getId());
+                } catch (NotFoundException e) {
+                    log.error("Жанр не найден (будет 404): {}", e.getMessage());
+                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
+                }
+            }
+        }
 
         if (film.getMpa() != null) {
+            log.info("Проверка MPA с ID: {}", film.getMpa().getId());
             try {
                 genreMpaStorage.getMpaRatingById(film.getMpa().getId());
+                log.info("MPA найден");
             } catch (NotFoundException e) {
+                log.error("MPA не найден (будет 404): {}", e.getMessage());
                 throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
             }
         }
+
+        // Затем валидация остальных полей (400 при ошибках валидации)
+        validateFilmForCreate(film);
+
         return filmStorage.create(film);
     }
 
@@ -46,6 +66,29 @@ public class FilmService {
         Film existingFilm = filmStorage.findById(film.getId())
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
+        // Сначала проверяем жанры и MPA (404 при невалидных ID)
+        if (film.getGenres() != null) {
+            log.info("Проверка жанров для обновления: {}", film.getGenres());
+            for (Genre genre : film.getGenres()) {
+                try {
+                    genreMpaStorage.getGenreById(genre.getId());
+                } catch (NotFoundException e) {
+                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
+                }
+            }
+            existingFilm.setGenres(film.getGenres());
+        }
+
+        if (film.getMpa() != null) {
+            try {
+                genreMpaStorage.getMpaRatingById(film.getMpa().getId());
+            } catch (Exception e) {
+                throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
+            }
+            existingFilm.setMpa(film.getMpa());
+        }
+
+        // Затем валидация остальных полей (400 при ошибках валидации)
         if (film.getName() != null) {
             if (film.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -70,26 +113,6 @@ public class FilmService {
                 throw new ValidationException("Продолжительность должна быть положительным числом");
             }
             existingFilm.setDuration(film.getDuration());
-        }
-
-        if (film.getMpa() != null) {
-            try {
-                genreMpaStorage.getMpaRatingById(film.getMpa().getId());
-            } catch (Exception e) {
-                throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
-            }
-            existingFilm.setMpa(film.getMpa());
-        }
-
-        if (film.getGenres() != null) {
-            for (Genre genre : film.getGenres()) {
-                try {
-                    genreMpaStorage.getGenreById(genre.getId());
-                } catch (Exception e) {
-                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
-                }
-            }
-            existingFilm.setGenres(film.getGenres());
         }
 
         return filmStorage.update(existingFilm);
