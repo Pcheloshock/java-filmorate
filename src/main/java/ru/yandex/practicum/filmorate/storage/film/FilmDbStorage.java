@@ -259,6 +259,7 @@ public class FilmDbStorage implements FilmStorage {
         for (Film film : films) {
             Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
             film.setLikes(likes);
+            // УБЕДИТЕСЬ, что ЭТОЙ СТРОКИ НЕТ: film.setRate(likes.size());
         }
     }
 

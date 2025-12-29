@@ -15,8 +15,8 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Film {
-    // При создании фильма id всегда null, пока БД не присвоит значение
     private Integer id;
+    private Integer rate;
 
     @NotBlank(message = "Название не может быть пустым")
     private String name;
@@ -36,7 +36,6 @@ public class Film {
     private Set<Genre> genres = new HashSet<>();
 
     private MpaRating mpa;
-    private Integer rate;
 
     public boolean isValid() {
         // 1. Название обязательно
