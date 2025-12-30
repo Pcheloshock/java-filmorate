@@ -97,7 +97,10 @@ public class FilmDbStorage implements FilmStorage {
             }
         }
 
-        log.info("Storage: Загружены жанры и лайки для {} фильмов", films.size());
+        // Загружаем только жанры, лайки уже загружены в FilmRowMapper
+        loadAllGenres(films);
+
+        log.info("Storage: Загружены жанры для {} фильмов", films.size());
         return films;
     }
 
@@ -123,8 +126,8 @@ public class FilmDbStorage implements FilmStorage {
         }
 
         Film film = films.get(0);
+        // Загружаем только жанры, лайки уже загружены в FilmRowMapper
         loadGenres(film);
-        loadLikes(film);
 
         log.info("Фильм с ID {} найден: {}", id, film.getName());
         return Optional.of(film);
@@ -155,7 +158,6 @@ public class FilmDbStorage implements FilmStorage {
         }
 
         // Проверяем существование пользователя
-        // (нужен доступ к UserStorage или таблице users)
         String checkUserSql = "SELECT COUNT(*) FROM users WHERE id = ?";
         Integer userCount = jdbcTemplate.queryForObject(checkUserSql, Integer.class, userId);
         if (userCount == null || userCount == 0) {
@@ -213,8 +215,8 @@ public class FilmDbStorage implements FilmStorage {
         log.info("Storage: Получено {} фильмов из БД", popularFilms.size());
 
         if (!popularFilms.isEmpty()) {
+            // Загружаем только жанры, лайки уже загружены в FilmRowMapper
             loadAllGenres(popularFilms);
-            loadAllLikes(popularFilms); // Исправленный без setRate
 
             // Выводим информацию для отладки
             for (int i = 0; i < popularFilms.size(); i++) {
@@ -226,41 +228,6 @@ public class FilmDbStorage implements FilmStorage {
         }
 
         return popularFilms;
-    }
-
-    private void loadAllLikes(List<Film> films) {
-        if (films.isEmpty()) {
-            log.info("Storage: Нет фильмов для загрузки лайков");
-            return;
-        }
-
-        List<Integer> filmIds = films.stream()
-                .map(Film::getId)
-                .collect(Collectors.toList());
-
-        String placeholders = filmIds.stream()
-                .map(id -> "?")
-                .collect(Collectors.joining(","));
-
-        String sql = String.format(
-                "SELECT film_id, user_id FROM film_likes WHERE film_id IN (%s)",
-                placeholders
-        );
-
-        log.debug("Storage: Загрузка лайков для фильмов: {}", filmIds);
-
-        Map<Integer, Set<Integer>> likesByFilmId = new HashMap<>();
-        jdbcTemplate.query(sql, filmIds.toArray(), rs -> {
-            Integer filmId = rs.getInt("film_id");
-            Integer userId = rs.getInt("user_id");
-            likesByFilmId.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
-        });
-
-        for (Film film : films) {
-            Set<Integer> likes = likesByFilmId.getOrDefault(film.getId(), new HashSet<>());
-            film.setLikes(likes);
-            // УБЕДИТЕСЬ, что ЭТОЙ СТРОКИ НЕТ: film.setRate(likes.size());
-        }
     }
 
     private void loadAllGenres(List<Film> films) {
@@ -352,15 +319,6 @@ public class FilmDbStorage implements FilmStorage {
         film.setGenres(sortedGenres);
 
         log.info("Загружены {} жанров для фильма ID {}", genres.size(), film.getId());
-    }
-
-    private void loadLikes(Film film) {
-        String sql = "SELECT user_id FROM film_likes WHERE film_id = ?";
-        List<Integer> likes = jdbcTemplate.query(sql,
-                (rs, rowNum) -> rs.getInt("user_id"),
-                film.getId());
-        film.setLikes(new HashSet<>(likes));
-        log.info("Загружено {} лайков для фильма ID {}", likes.size(), film.getId());
     }
 
     private static class FilmRowMapper implements RowMapper<Film> {

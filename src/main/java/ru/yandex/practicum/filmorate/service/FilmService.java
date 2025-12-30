@@ -3,6 +3,7 @@ package ru.yandex.practicum.filmorate.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
@@ -12,7 +13,10 @@ import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
 import ru.yandex.practicum.filmorate.storage.film.GenreMpaStorage;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class FilmService {
     private final FilmStorage filmStorage;
     private final UserService userService;
     private final GenreMpaStorage genreMpaStorage;
+    private final JdbcTemplate jdbcTemplate; // Добавляем JdbcTemplate для эффективных запросов
 
     public Film create(Film film) {
         log.info("Создание фильма: name='{}', description length={}, releaseDate={}, duration={}, genres={}",
@@ -31,32 +36,14 @@ public class FilmService {
                 film.getDuration(),
                 film.getGenres() != null ? film.getGenres() : "null");
 
-        // Сначала проверяем жанры и MPA (чтобы получить 404 при невалидных ID)
-        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
-            log.info("Проверка жанров: {}", film.getGenres());
-            for (Genre genre : film.getGenres()) {
-                try {
-                    genreMpaStorage.getGenreById(genre.getId());
-                    log.info("Жанр {} найден", genre.getId());
-                } catch (NotFoundException e) {
-                    log.error("Жанр не найден (будет 404): {}", e.getMessage());
-                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
-                }
-            }
-        }
+        validateAndLoadGenres(film);
 
         if (film.getMpa() != null) {
             log.info("Проверка MPA с ID: {}", film.getMpa().getId());
-            try {
-                genreMpaStorage.getMpaRatingById(film.getMpa().getId());
-                log.info("MPA найден");
-            } catch (NotFoundException e) {
-                log.error("MPA не найден (будет 404): {}", e.getMessage());
-                throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
-            }
+            genreMpaStorage.getMpaRatingById(film.getMpa().getId());
+            log.info("MPA найден");
         }
 
-        // Затем валидация остальных полей (400 при ошибках валидации)
         validateFilmForCreate(film);
 
         return filmStorage.create(film);
@@ -66,29 +53,18 @@ public class FilmService {
         Film existingFilm = filmStorage.findById(film.getId())
                 .orElseThrow(() -> new NotFoundException("Фильм с ID " + film.getId() + " не найден"));
 
-        // Сначала проверяем жанры и MPA (404 при невалидных ID)
+        // 1. Проверяем и обновляем жанры одним запросом
         if (film.getGenres() != null) {
             log.info("Проверка жанров для обновления: {}", film.getGenres());
-            for (Genre genre : film.getGenres()) {
-                try {
-                    genreMpaStorage.getGenreById(genre.getId());
-                } catch (NotFoundException e) {
-                    throw new NotFoundException("Жанр с ID " + genre.getId() + " не найден");
-                }
-            }
+            validateAndLoadGenres(film);
             existingFilm.setGenres(film.getGenres());
         }
 
         if (film.getMpa() != null) {
-            try {
-                genreMpaStorage.getMpaRatingById(film.getMpa().getId());
-            } catch (Exception e) {
-                throw new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден");
-            }
+            genreMpaStorage.getMpaRatingById(film.getMpa().getId());
             existingFilm.setMpa(film.getMpa());
         }
 
-        // Затем валидация остальных полей (400 при ошибках валидации)
         if (film.getName() != null) {
             if (film.getName().isBlank()) {
                 throw new ValidationException("Название не может быть пустым");
@@ -116,6 +92,61 @@ public class FilmService {
         }
 
         return filmStorage.update(existingFilm);
+    }
+
+    private void validateAndLoadGenres(Film film) {
+        if (film.getGenres() == null || film.getGenres().isEmpty()) {
+            return;
+        }
+
+        log.info("Проверка жанров: {}", film.getGenres());
+
+        // Собираем все ID жанров
+        Set<Integer> genreIds = film.getGenres().stream()
+                .map(Genre::getId)
+                .collect(Collectors.toSet());
+
+        if (genreIds.isEmpty()) {
+            return;
+        }
+
+        // Создаем строку с плейсхолдерами для SQL IN запроса
+        String placeholders = genreIds.stream()
+                .map(id -> "?")
+                .collect(Collectors.joining(","));
+
+        // Выполняем один запрос для получения всех жанров
+        String sql = String.format("SELECT id, name FROM genres WHERE id IN (%s)", placeholders);
+
+        List<Genre> foundGenres = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Genre genre = new Genre();
+            genre.setId(rs.getInt("id"));
+            genre.setName(rs.getString("name"));
+            return genre;
+        }, genreIds.toArray());
+
+        // Проверяем, все ли запрошенные жанры найдены
+        Set<Integer> foundGenreIds = foundGenres.stream()
+                .map(Genre::getId)
+                .collect(Collectors.toSet());
+
+        for (Integer genreId : genreIds) {
+            if (!foundGenreIds.contains(genreId)) {
+                throw new NotFoundException("Жанр с ID " + genreId + " не найден");
+            }
+        }
+
+        // Обновляем объекты жанров в фильме (чтобы были правильные названия)
+        // Создаем Map для быстрого поиска жанров по ID
+        java.util.Map<Integer, Genre> genreMap = foundGenres.stream()
+                .collect(Collectors.toMap(Genre::getId, genre -> genre));
+
+        Set<Genre> validatedGenres = film.getGenres().stream()
+                .map(genre -> genreMap.get(genre.getId()))
+                .collect(Collectors.toSet());
+
+        film.setGenres(validatedGenres);
+        log.info("Проверено {} жанров, все найдены", genreIds.size());
     }
 
     public List<Film> findAll() {
