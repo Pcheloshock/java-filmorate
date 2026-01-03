@@ -1,13 +1,12 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
-import org.springframework.stereotype.Component;
 import ru.yandex.practicum.filmorate.model.Film;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-@Component
 public class InMemoryFilmStorage implements FilmStorage {
     private final Map<Integer, Film> films = new ConcurrentHashMap<>();
     private final AtomicInteger currentId = new AtomicInteger(1);
@@ -37,6 +36,11 @@ public class InMemoryFilmStorage implements FilmStorage {
     }
 
     @Override
+    public int getTotalFilmsCount() {
+        return films.size();
+    }
+
+    @Override
     public void delete(int id) {
         films.remove(id);
     }
@@ -44,5 +48,42 @@ public class InMemoryFilmStorage implements FilmStorage {
     @Override
     public boolean existsById(int id) {
         return films.containsKey(id);
+    }
+
+    @Override
+    public void addLike(int filmId, int userId) {
+        Film film = films.get(filmId);
+        if (film != null) {
+            if (film.getLikes() == null) {
+                film.setLikes(new HashSet<>());
+            }
+            film.getLikes().add(userId);
+        }
+    }
+
+    @Override
+    public void removeLike(int filmId, int userId) {
+        Film film = films.get(filmId);
+        if (film != null && film.getLikes() != null) {
+            film.getLikes().remove(userId);
+        }
+    }
+
+    @Override
+    public List<Film> getPopularFilms(int count) {
+        return films.values().stream()
+                .sorted((f1, f2) -> {
+                    int likes1 = f1.getLikes() != null ? f1.getLikes().size() : 0;
+                    int likes2 = f2.getLikes() != null ? f2.getLikes().size() : 0;
+                    // Сначала сравниваем по количеству лайков (по убыванию)
+                    int likesComparison = Integer.compare(likes2, likes1);
+                    if (likesComparison != 0) {
+                        return likesComparison;
+                    }
+                    // При равном количестве лайков - по ID (по убыванию)
+                    return Integer.compare(f2.getId(), f1.getId());
+                })
+                .limit(count)
+                .collect(Collectors.toList());
     }
 }

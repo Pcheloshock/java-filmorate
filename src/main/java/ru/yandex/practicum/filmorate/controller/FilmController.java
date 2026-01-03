@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
-import jakarta.validation.Valid;
+
 import java.util.List;
 
 @RestController
@@ -19,20 +19,22 @@ public class FilmController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Film createFilm(@Valid @RequestBody Film film) {
+    public Film createFilm(@RequestBody Film film) {
         log.info("Создание фильма: {}", film);
         return filmService.create(film);
     }
 
     @PutMapping
-    public Film updateFilm(@RequestBody Film film) { // Убрали @Valid
+    public Film updateFilm(@RequestBody Film film) {
         log.info("Обновление фильма: {}", film);
         return filmService.update(film);
     }
 
-    // остальные методы без изменений
     @GetMapping
-    public List<Film> getAllFilms() {
+    public List<Film> getAllFilms(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        // Пока возвращаем все фильмы, пагинацию добавим позже
         return filmService.findAll();
     }
 
@@ -56,6 +58,10 @@ public class FilmController {
     @GetMapping("/popular")
     public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
         log.info("Запрос {} популярных фильмов", count);
-        return filmService.getPopularFilms(count);
+
+        List<Film> popularFilms = filmService.getPopularFilms(count);
+        log.info("Возвращено {} популярных фильмов", popularFilms.size());
+
+        return popularFilms;
     }
 }
